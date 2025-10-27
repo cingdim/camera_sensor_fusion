@@ -1,0 +1,4 @@
+opencv-python
+numpy
+# If ArUco isn't available, install:
+# opencv-contrib-python
