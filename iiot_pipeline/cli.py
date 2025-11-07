@@ -30,8 +30,8 @@ def main():
     ap.add_argument("--height", type=int, default=1080)
     ap.add_argument("--no-detect", action="store_true")
     #adding list of marker id to detect
-    ap.add_argument("--marker-ids", type=int, nargs='+', default=None,
-                    help="List of ArUco marker IDs to detect. If not set, all markers in the dictionary will be detected.")
+    # ap.add_argument("--marker-ids", type=int, nargs='+', default=None,
+                    # help="List of ArUco marker IDs to detect. If not set, all markers in the dictionary will be detected.")
 
     # Broker / identity for Data Team SDK
     ap.add_argument("--broker-ip", default="192.168.1.76")
