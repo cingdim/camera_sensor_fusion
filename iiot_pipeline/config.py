@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-
+from typing import Optional, List
 @dataclass
 class RunConfig:
     fps: int = 15
@@ -14,6 +14,9 @@ class RunConfig:
     width: int = 1920
     height: int = 1080
     noDetect: bool = False
+    targetIds: Optional[List[int]] = None
+    
+
 
 @dataclass
 class SessionSummary:

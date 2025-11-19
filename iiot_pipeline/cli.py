@@ -30,8 +30,12 @@ def main():
     ap.add_argument("--height", type=int, default=1080)
     ap.add_argument("--no-detect", action="store_true")
     #adding list of marker id to detect
-    # ap.add_argument("--marker-ids", type=int, nargs='+', default=None,
-                    # help="List of ArUco marker IDs to detect. If not set, all markers in the dictionary will be detected.")
+    ap.add_argument(
+        "--target-ids",
+        nargs="+",
+        type=int,
+        help="List of ArUco marker IDs to filter (optional).",
+    )
 
     # Broker / identity for Data Team SDK
     ap.add_argument("--broker-ip", default="192.168.1.76")
@@ -62,7 +66,7 @@ def main():
         arucoDict=args.dict,
         markerLengthM=args.marker_length_m,
         device=args.device,
-        targetIds = args.ids,
+        targetIds = args.target_ids,
     )
 
     cap, pre, und, det, loc = StrategyFactory.from_config(config)
@@ -102,6 +106,7 @@ def main():
         cap, pre, und, det, loc,
         storage, logger,
         publisher=data_client,
+        target_ids=config.targetIds, 
     )
 
     summary = facade.run_session(config)
