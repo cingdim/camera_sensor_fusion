@@ -37,6 +37,56 @@ After it finishes, open the newest folder under `data/sessions/`.
 
 ---
 
+## Multi-camera service (new)
+
+This repo now includes a clean, multi-camera runner in the `camera_fusion` package.
+Each camera runs in its own process with an isolated config and output folder prefix.
+
+### Setup
+
+Configs are JSON by default. YAML works if you install PyYAML:
+
+```bash
+pip install pyyaml
+```
+
+### One camera
+
+```bash
+python -m camera_fusion.run --config configs/cam1.json
+```
+
+Override any config values from the CLI (no code edits needed):
+
+```bash
+python -m camera_fusion.run --config configs/cam1.json --device 8 --fps 10 --target-ids 1 2 3
+```
+
+### Multiple cameras (separate terminals)
+
+```bash
+python -m camera_fusion.run --config configs/cam1.json
+python -m camera_fusion.run --config configs/cam2.json
+```
+
+### Multiple cameras (single launcher)
+
+```bash
+python -m camera_fusion.launch configs/cam1.json configs/cam2.json
+```
+
+### Dry run (no physical camera)
+
+```bash
+python -m camera_fusion.run --config configs/cam1.json --dry-run --max-frames 5 --no-detect --no-save-frames
+```
+
+### Troubleshooting
+
+- If the camera fails to open, double-check the `device` index/path and that no other process is using it.
+- If ArUco detection fails, ensure `opencv-contrib-python` is installed.
+- For YAML configs, install PyYAML as noted above.
+
 ## Outputs
 
 ```
@@ -60,5 +110,4 @@ data/sessions/<aruco_session_YYYYMMDD_HHMMSS>/
 | `--out` | Root folder for session outputs. |
 | `--dict` | ArUco dictionary (e.g., `4x4_50`, `4x4_100`, `5x5_50`, …). |
 | `--marker-length-m` | Marker side length in meters (needed for pose & axes). Use `0` to skip pose estimation (IDs only). |
-| `--grayscale` *(optional)* | Preprocess frames in grayscale before detection. |
 
