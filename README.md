@@ -164,6 +164,7 @@ All config files (JSON or YAML) support these fields:
 | `marker_length_m` | float | `0.035` | Marker side length in meters - measure the **outer black square** edge-to-edge (NOT diagonal, NOT inner pattern) |
 | `target_ids` | list of int | `null` | Filter to specific marker IDs (e.g., `[1, 2, 3]`); `null` = all |
 | `reference_id` | int or null | `null` | ID of reference/world marker (e.g., floor marker). When set, computes poses of other markers relative to this reference frame |
+| `marker_lengths_m` | map | `null` | Per-marker lengths override (e.g., `{ "0": 0.150, "1": 0.050 }`). Keys may be strings in JSON |
 | `no_detect` | bool | `false` | Skip detection (capture only) |
 | `dry_run` | bool | `false` | Use synthetic frames (no physical camera) |
 | `max_frames` | int or null | `null` | Stop after N frames |
@@ -223,13 +224,13 @@ Each camera worker creates a unique session folder:
 data/sessions/<camera_name>_session_YYYYMMDD_HHMMSS/
   frames/             # undistorted originals (no drawings)
   annotated/          # frames with ArUco markers + axes drawn
-  detections.csv      # recorded_at, frame_idx, marker_id, rvec_*, tvec_*, [ref_visible, ref_rvec_*, ref_tvec_*], image_path
+  detections.csv      # recorded_at, frame_idx, marker_id, rvec_*, tvec_*, [ref_visible, ref_rvec_*, ref_tvec_*], length_m, image_path
   logs/session.log    # per-camera logs with [camera_name] prefix
   config.json         # snapshot of config used for this session
 ```
 
 **CSV columns:**
-- Without reference: `recorded_at, frame_idx, marker_id, rvec_x/y/z, tvec_x/y/z, image_path`
+- Without reference: `recorded_at, frame_idx, marker_id, rvec_x/y/z, tvec_x/y/z, length_m, image_path`
 - With reference: adds `ref_visible, ref_rvec_x/y/z, ref_tvec_x/y/z` (poses relative to reference marker)
 
 Example with two cameras:

@@ -23,6 +23,7 @@ class OutputSink(ABC):
         ref_visible: bool = False,
         ref_rvec = None,
         ref_tvec = None,
+        length_m = None,
     ) -> None: ...
 
     @abstractmethod
@@ -30,14 +31,17 @@ class OutputSink(ABC):
 
 
 class CsvOutput(OutputSink):
-    def __init__(self, filename: str = "detections.csv", use_reference: bool = False):
+    def __init__(self, filename: str = "detections.csv", use_reference: bool = False, use_length: bool = True):
         self.filename = filename
         self.use_reference = use_reference
+        self.use_length = use_length
         self._writer: Optional[CsvWriter] = None
 
     def open(self, session_dir: Path) -> None:
         path = session_dir / self.filename
-        self._writer = CsvWriter(str(path), use_reference=self.use_reference)
+        self._writer = CsvWriter(
+            str(path), use_reference=self.use_reference, use_length=self.use_length
+        )
         self._writer.open()
 
     def write_detection(
@@ -51,12 +55,14 @@ class CsvOutput(OutputSink):
         ref_visible: bool = False,
         ref_rvec = None,
         ref_tvec = None,
+        length_m = None,
     ) -> None:
         if self._writer is None:
             return
         self._writer.append(
             ts_unix, frame_idx, marker_id, rvec, tvec, image_path,
-            ref_visible=ref_visible, ref_rvec=ref_rvec, ref_tvec=ref_tvec
+            ref_visible=ref_visible, ref_rvec=ref_rvec, ref_tvec=ref_tvec,
+            length_m=length_m,
         )
 
     def close(self) -> None:
@@ -80,6 +86,7 @@ class NullOutput(OutputSink):
         ref_visible: bool = False,
         ref_rvec = None,
         ref_tvec = None,
+        length_m = None,
     ) -> None:
         return None
 
