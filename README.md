@@ -42,16 +42,36 @@ After it finishes, open the newest folder under `data/sessions/`.
 This repo now includes a clean, multi-camera runner in the `camera_fusion` package.
 Each camera runs in its own process with an isolated config and output folder prefix.
 
-### Setup
+### Quick Start (new system)
 
-Configs are JSON by default. YAML works if you install PyYAML:
+1. **Find your camera device:**
+   ```bash
+   v4l2-ctl --list-devices
+   ```
+   Note the device path (e.g., `/dev/video8`) or index (e.g., `8`).
 
-```bash
-pip install pyyaml
-```
+2. **Edit a config file** (e.g., `configs/cam1.json`):
+   ```json
+   {
+     "camera_name": "cam1",
+     "device": 8,
+     "target_ids": [1, 2, 3]
+   }
+   ```
+
+3. **Run it:**
+   ```bash
+   python -m camera_fusion.run --config configs/cam1.json
+   ```
+
+4. **Check outputs:**
+   ```bash
+   ls data/sessions/cam1_session_*/
+   ```
 
 ### One camera
 
+Run with a config file:
 ```bash
 python -m camera_fusion.run --config configs/cam1.json
 ```
@@ -75,19 +95,118 @@ python -m camera_fusion.run --config configs/cam2.json
 python -m camera_fusion.launch configs/cam1.json configs/cam2.json
 ```
 
+Press `Ctrl+C` once to stop all cameras cleanly.
+
+### Optional: YAML configs
+
+Configs are JSON by default. To use YAML instead:
+
+```bash
+pip install pyyaml
+```
+
+Then create `configs/cam1.yaml`:
+```yaml
+camera_name: cam1
+device: 8
+fps: 15
+target_ids: [1, 2, 3]
+```
+
 ### Dry run (no physical camera)
 
 ```bash
 python -m camera_fusion.run --config configs/cam1.json --dry-run --max-frames 5 --no-detect --no-save-frames
 ```
 
+### Config file options
+
+All config files (JSON or YAML) support these fields:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `camera_name` | string | `"cam"` | Unique identifier for logging and output folder prefix |
+| `device` | int or string | `0` | Camera index (e.g., `8`) or path (e.g., `"/dev/video8"`) |
+| `fps` | int | `15` | Target frame rate |
+| `width` | int | `1920` | Frame width |
+| `height` | int | `1080` | Frame height |
+| `calibration_path` | string | `"calib/c920s_1920x1080_simple.yml"` | Path to calibration file |
+| `session_root` | string | `"data/sessions"` | Root directory for session outputs |
+| `duration_sec` | float | `30.0` | Max session duration (seconds) |
+| `aruco_dict` | string | `"4x4_50"` | ArUco dictionary (accepts `4x4_50`, `DICT_4X4_50`, `4X4_50`, etc.) |
+| `marker_length_m` | float | `0.035` | Marker side length in meters (for pose estimation) |
+| `target_ids` | list of int | `null` | Filter to specific marker IDs (e.g., `[1, 2, 3]`); `null` = all |
+| `no_detect` | bool | `false` | Skip detection (capture only) |
+| `dry_run` | bool | `false` | Use synthetic frames (no physical camera) |
+| `max_frames` | int or null | `null` | Stop after N frames |
+| `save_annotated` | bool | `true` | Save frames with ArUco markers drawn |
+| `save_frames` | bool | `true` | Save undistorted original frames |
+
+### CLI overrides
+
+Any config option can be overridden from the command line:
+
+```bash
+python -m camera_fusion.run --config configs/cam1.json \
+  --camera-name cam_left \
+  --device /dev/video8 \
+  --fps 20 \
+  --width 1280 \
+  --height 720 \
+  --calib calib/other.yml \
+  --out data/custom_sessions \
+  --duration 60.0 \
+  --dict 5x5_100 \
+  --marker-length-m 0.05 \
+  --target-ids 10 11 12 \
+  --no-detect \
+  --dry-run \
+  --max-frames 100 \
+  --no-save-frames \
+  --no-save-annotated
+```
+
+### Graceful shutdown
+
+Press `Ctrl+C` (SIGINT) to stop cleanly. The worker will:
+- Release the camera
+- Close output files
+- Write session summary to logs
+
+When using the multi-camera launcher, `Ctrl+C` stops all processes.
+
 ### Troubleshooting
 
-- If the camera fails to open, double-check the `device` index/path and that no other process is using it.
-- If ArUco detection fails, ensure `opencv-contrib-python` is installed.
-- For YAML configs, install PyYAML as noted above.
+- **Camera fails to open**: Check `device` index/path and ensure no other process is using it.
+- **ArUco detection fails**: Install `opencv-contrib-python` (not just `opencv-python`).
+- **YAML config errors**: Install PyYAML: `pip install pyyaml`.
+- **Device string `/dev/videoX`**: Automatically parsed to integer index `X` with V4L2 backend.
+- **Logs not appearing**: Check `session_root/<camera_name>_session_*/logs/session.log`.
+- **Multiple instances conflict**: Ensure each camera has a unique `camera_name` and `device`.
 
 ## Outputs
+
+### Multi-camera service outputs
+
+Each camera worker creates a unique session folder:
+
+```
+data/sessions/<camera_name>_session_YYYYMMDD_HHMMSS/
+  frames/             # undistorted originals (no drawings)
+  annotated/          # frames with ArUco markers + axes drawn
+  detections.csv      # recorded_at, frame_idx, marker_id, rvec_*, tvec_*, image_path
+  logs/session.log    # per-camera logs with [camera_name] prefix
+  config.json         # snapshot of config used for this session
+```
+
+Example with two cameras:
+```
+data/sessions/
+  cam1_session_20260202_143012/
+  cam2_session_20260202_143012/
+```
+
+### Legacy CLI outputs
 
 ```
 data/sessions/<aruco_session_YYYYMMDD_HHMMSS>/
@@ -100,7 +219,7 @@ data/sessions/<aruco_session_YYYYMMDD_HHMMSS>/
 
 ---
 
-## Flags
+## Legacy CLI Flags
 
 | Flag | Description |
 |------|-------------|
