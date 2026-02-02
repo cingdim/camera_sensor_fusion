@@ -8,7 +8,6 @@
   "session_root": "data/sessions",
   "duration_sec": 30.0,
   "aruco_dict": "4x4_50",
-  //"marker_length_m": 0.05,
   "marker_lengths_m": {
     "1": 0.15,
     "2": 0.0485,
