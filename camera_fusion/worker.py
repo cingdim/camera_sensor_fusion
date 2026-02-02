@@ -21,6 +21,7 @@ from .config import CameraConfig
 from .detect import build_detector, detect_markers
 from .logging_utils import add_file_handler, setup_logger
 from .output import CsvOutput, OutputSink
+from .transforms import compute_relative_pose
 
 
 @dataclass
@@ -53,7 +54,13 @@ class CameraWorker:
     ):
         self.config = config
         self.logger = logger or setup_logger(config.camera_name)
-        self.outputs = outputs or [CsvOutput()]
+        
+        # Default output with reference support if reference_id is set
+        if outputs is None:
+            use_ref = config.reference_id is not None
+            outputs = [CsvOutput(use_reference=use_ref)]
+        
+        self.outputs = outputs
         self.capture = capture
         self._stop_event = threading.Event()
 
@@ -131,8 +138,20 @@ class CameraWorker:
                 pose_map = {}
                 if not self.config.no_detect and not self.config.dry_run:
                     dets = detect_markers(f.image, detector_state)
-                    poses = loc.estimate(dets)
-                    pose_map = {d.marker_id: poses[i] for i, d in enumerate(dets) if i < len(poses)}
+                    if self.config.marker_lengths_m:
+                        poses = loc.estimate_with_lengths(
+                            dets,
+                            self.config.marker_lengths_m,
+                            default_length=self.config.marker_length_m,
+                        )
+                    else:
+                        poses = loc.estimate(dets)
+
+                    pose_map = {
+                        d.marker_id: poses[i]
+                        for i, d in enumerate(dets)
+                        if i < len(poses) and poses[i] is not None
+                    }
 
                 if dets and self.config.save_annotated:
                     draw = f.image.copy()
@@ -177,6 +196,34 @@ class CameraWorker:
                 if self.config.save_frames:
                     storage.save_frame(f)
 
+                # Compute reference-relative poses if reference marker is present
+                ref_visible = False
+                ref_pose_map = {}
+                
+                if self.config.reference_id is not None and self.config.reference_id in pose_map:
+                    ref_pose = pose_map[self.config.reference_id]
+                    if ref_pose is not None and ref_pose.rvec is not None and ref_pose.tvec is not None:
+                        ref_visible = True
+                    else:
+                        ref_visible = False
+                    
+                    for marker_id, pose in pose_map.items():
+                        if marker_id == self.config.reference_id:
+                            continue
+                        if pose is None or pose.rvec is None or pose.tvec is None:
+                            continue
+                        try:
+                            ref_rvec, ref_tvec = compute_relative_pose(
+                                ref_pose.rvec, ref_pose.tvec,
+                                pose.rvec, pose.tvec
+                            )
+                            ref_pose_map[marker_id] = (ref_rvec, ref_tvec)
+                        except Exception as e:
+                            self.logger.warning(
+                                "Failed to compute relative pose for marker %d: %s",
+                                marker_id, e
+                            )
+
                 for det in dets:
                     if self.target_ids is not None and det.marker_id not in self.target_ids:
                         continue
@@ -184,6 +231,15 @@ class CameraWorker:
                     rvec = pose.rvec if pose is not None else None
                     tvec = pose.tvec if pose is not None else None
                     ts_unix = time.time()
+
+                    length_m = self.config.marker_length_m
+                    if self.config.marker_lengths_m and det.marker_id in self.config.marker_lengths_m:
+                        length_m = self.config.marker_lengths_m[det.marker_id]
+                    
+                    # Get reference-relative pose if available
+                    ref_rvec, ref_tvec = None, None
+                    if det.marker_id in ref_pose_map:
+                        ref_rvec, ref_tvec = ref_pose_map[det.marker_id]
 
                     for out in self.outputs:
                         out.write_detection(
@@ -193,6 +249,10 @@ class CameraWorker:
                             rvec,
                             tvec,
                             storage.last_path,
+                            ref_visible=ref_visible,
+                            ref_rvec=ref_rvec,
+                            ref_tvec=ref_tvec,
+                            length_m=length_m,
                         )
 
                 self.logger.info(

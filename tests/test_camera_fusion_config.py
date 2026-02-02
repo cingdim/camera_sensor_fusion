@@ -16,6 +16,7 @@ def test_load_config_json(tmp_path: Path):
                 "height": 480,
                 "aruco_dict": "4x4_50",
                 "marker_length_m": 0.05,
+                "marker_lengths_m": {"0": 0.15, "1": 0.05},
                 "target_ids": [1, 2],
             }
         ),
@@ -29,6 +30,7 @@ def test_load_config_json(tmp_path: Path):
     assert cfg.width == 640
     assert cfg.height == 480
     assert cfg.target_ids == [1, 2]
+    assert cfg.marker_lengths_m == {0: 0.15, 1: 0.05}
 
     cfg.apply_overrides(camera_name="camB", fps=10)
     assert cfg.camera_name == "camB"

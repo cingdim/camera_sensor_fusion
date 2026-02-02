@@ -19,6 +19,8 @@ class CameraConfig:
     aruco_dict: str = "4x4_50"
     marker_length_m: float = 0.035
     target_ids: Optional[list[int]] = None
+    reference_id: Optional[int] = None
+    marker_lengths_m: Optional[dict[int, float]] = None
     no_detect: bool = False
     dry_run: bool = False
     max_frames: Optional[int] = None
@@ -86,6 +88,14 @@ def load_config(path: str | Path) -> CameraConfig:
     cfg.aruco_dict = str(raw.get("aruco_dict", cfg.aruco_dict))
     cfg.marker_length_m = float(raw.get("marker_length_m", cfg.marker_length_m))
     cfg.target_ids = _normalize_target_ids(raw.get("target_ids", cfg.target_ids))
+    cfg.reference_id = raw.get("reference_id", cfg.reference_id)
+    if cfg.reference_id is not None:
+        cfg.reference_id = int(cfg.reference_id)
+    lengths_raw = raw.get("marker_lengths_m", cfg.marker_lengths_m)
+    if lengths_raw is not None:
+        if not isinstance(lengths_raw, dict):
+            raise ValueError("marker_lengths_m must be a mapping of marker_id -> length_m")
+        cfg.marker_lengths_m = {int(k): float(v) for k, v in lengths_raw.items()}
     cfg.no_detect = bool(raw.get("no_detect", cfg.no_detect))
     cfg.dry_run = bool(raw.get("dry_run", cfg.dry_run))
     cfg.max_frames = raw.get("max_frames", cfg.max_frames)
