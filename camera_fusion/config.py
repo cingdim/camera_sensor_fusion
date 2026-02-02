@@ -19,6 +19,7 @@ class CameraConfig:
     aruco_dict: str = "4x4_50"
     marker_length_m: float = 0.035
     target_ids: Optional[list[int]] = None
+    reference_id: Optional[int] = None
     no_detect: bool = False
     dry_run: bool = False
     max_frames: Optional[int] = None
@@ -86,6 +87,9 @@ def load_config(path: str | Path) -> CameraConfig:
     cfg.aruco_dict = str(raw.get("aruco_dict", cfg.aruco_dict))
     cfg.marker_length_m = float(raw.get("marker_length_m", cfg.marker_length_m))
     cfg.target_ids = _normalize_target_ids(raw.get("target_ids", cfg.target_ids))
+    cfg.reference_id = raw.get("reference_id", cfg.reference_id)
+    if cfg.reference_id is not None:
+        cfg.reference_id = int(cfg.reference_id)
     cfg.no_detect = bool(raw.get("no_detect", cfg.no_detect))
     cfg.dry_run = bool(raw.get("dry_run", cfg.dry_run))
     cfg.max_frames = raw.get("max_frames", cfg.max_frames)

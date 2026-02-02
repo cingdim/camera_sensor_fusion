@@ -21,6 +21,7 @@ def _build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--dict")
     ap.add_argument("--marker-length-m", type=float)
     ap.add_argument("--target-ids", nargs="+", type=int)
+    ap.add_argument("--reference-id", type=int)
     ap.add_argument("--no-detect", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--max-frames", type=int)
@@ -60,6 +61,7 @@ def _apply_args(cfg: CameraConfig, args: argparse.Namespace) -> CameraConfig:
         aruco_dict=args.dict,
         marker_length_m=args.marker_length_m,
         target_ids=args.target_ids,
+        reference_id=args.reference_id,
         no_detect=args.no_detect if args.no_detect else None,
         dry_run=args.dry_run if args.dry_run else None,
         max_frames=args.max_frames,

@@ -111,7 +111,34 @@ camera_name: cam1
 device: 8
 fps: 15
 target_ids: [1, 2, 3]
+reference_id: 0  # Floor/world marker
 ```
+
+### Reference frame / world coordinate system
+
+To compute robot marker poses relative to a fixed world frame (e.g., a floor marker):
+
+1. **Place a reference ArUco marker** on the floor or fixed location
+2. **Set `reference_id`** to that marker's ID in your config:
+   ```json
+   {
+     "reference_id": 0,
+     "target_ids": [0, 1, 2]
+   }
+   ```
+3. **Include reference ID in `target_ids`** so it gets detected
+
+When the reference marker is visible, the CSV will include:
+- Camera-relative poses (`rvec_x/y/z`, `tvec_x/y/z`)
+- Reference-relative poses (`ref_rvec_x/y/z`, `ref_tvec_x/y/z`)
+- `ref_visible` flag (1 if reference seen, 0 otherwise)
+
+When reference marker is NOT visible in a frame:
+- `ref_visible = 0`
+- Reference-relative fields are NaN
+- Camera-relative poses still logged
+
+**Use case:** Track robot joint markers relative to floor coordinate system instead of camera.
 
 ### Dry run (no physical camera)
 
@@ -134,8 +161,9 @@ All config files (JSON or YAML) support these fields:
 | `session_root` | string | `"data/sessions"` | Root directory for session outputs |
 | `duration_sec` | float | `30.0` | Max session duration (seconds) |
 | `aruco_dict` | string | `"4x4_50"` | ArUco dictionary (accepts `4x4_50`, `DICT_4X4_50`, `4X4_50`, etc.) |
-| `marker_length_m` | float | `0.035` | Marker side length in meters (for pose estimation) |
+| `marker_length_m` | float | `0.035` | Marker side length in meters - measure the **outer black square** edge-to-edge (NOT diagonal, NOT inner pattern) |
 | `target_ids` | list of int | `null` | Filter to specific marker IDs (e.g., `[1, 2, 3]`); `null` = all |
+| `reference_id` | int or null | `null` | ID of reference/world marker (e.g., floor marker). When set, computes poses of other markers relative to this reference frame |
 | `no_detect` | bool | `false` | Skip detection (capture only) |
 | `dry_run` | bool | `false` | Use synthetic frames (no physical camera) |
 | `max_frames` | int or null | `null` | Stop after N frames |
@@ -183,6 +211,7 @@ When using the multi-camera launcher, `Ctrl+C` stops all processes.
 - **Device string `/dev/videoX`**: Automatically parsed to integer index `X` with V4L2 backend.
 - **Logs not appearing**: Check `session_root/<camera_name>_session_*/logs/session.log`.
 - **Multiple instances conflict**: Ensure each camera has a unique `camera_name` and `device`.
+- **Inaccurate pose estimation**: Measure `marker_length_m` precisely. Use a ruler to measure the outer black square edge-to-edge (e.g., if marker is 35mm wide, use `0.035`). Do NOT measure diagonally or just the inner pattern.
 
 ## Outputs
 
@@ -194,10 +223,14 @@ Each camera worker creates a unique session folder:
 data/sessions/<camera_name>_session_YYYYMMDD_HHMMSS/
   frames/             # undistorted originals (no drawings)
   annotated/          # frames with ArUco markers + axes drawn
-  detections.csv      # recorded_at, frame_idx, marker_id, rvec_*, tvec_*, image_path
+  detections.csv      # recorded_at, frame_idx, marker_id, rvec_*, tvec_*, [ref_visible, ref_rvec_*, ref_tvec_*], image_path
   logs/session.log    # per-camera logs with [camera_name] prefix
   config.json         # snapshot of config used for this session
 ```
+
+**CSV columns:**
+- Without reference: `recorded_at, frame_idx, marker_id, rvec_x/y/z, tvec_x/y/z, image_path`
+- With reference: adds `ref_visible, ref_rvec_x/y/z, ref_tvec_x/y/z` (poses relative to reference marker)
 
 Example with two cameras:
 ```
