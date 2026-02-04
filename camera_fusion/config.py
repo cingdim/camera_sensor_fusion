@@ -7,6 +7,27 @@ from typing import Any, Optional
 
 
 @dataclass
+class LightGlueConfig:
+    enabled: bool = False
+    device: str = "cpu"  # "cpu", "cuda", or "cuda:0"
+    template_dir: str = "templates/markers"
+    min_inliers: int = 4
+    max_age_frames: int = 5
+    roi_expand_px: int = 50
+    debug_save: bool = False
+    corner_refine: bool = True
+    match_threshold: float = 0.2
+    # Safety features
+    verify_id: bool = True  # Verify ArUco ID after recovery
+    max_fallback_markers_per_frame: int = 2  # Limit fallback attempts per frame
+    reacquire_interval_frames: int = 5  # Min frames between reacquire attempts per marker
+    prefer_roi_matching: bool = True  # Use ROI if last_corners exist
+
+    def as_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
 class CameraConfig:
     camera_name: str = "cam"
     device: int | str = 0
@@ -26,6 +47,7 @@ class CameraConfig:
     max_frames: Optional[int] = None
     save_annotated: bool = True
     save_frames: bool = True
+    lightglue: Optional[LightGlueConfig] = None
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -103,4 +125,24 @@ def load_config(path: str | Path) -> CameraConfig:
         cfg.max_frames = int(cfg.max_frames)
     cfg.save_annotated = bool(raw.get("save_annotated", cfg.save_annotated))
     cfg.save_frames = bool(raw.get("save_frames", cfg.save_frames))
+    
+    # Load lightglue config if present
+    lg_raw = raw.get("lightglue")
+    if lg_raw is not None and isinstance(lg_raw, dict):
+        lg_cfg = LightGlueConfig()
+        lg_cfg.enabled = bool(lg_raw.get("enabled", lg_cfg.enabled))
+        lg_cfg.device = str(lg_raw.get("device", lg_cfg.device))
+        lg_cfg.template_dir = str(lg_raw.get("template_dir", lg_cfg.template_dir))
+        lg_cfg.min_inliers = int(lg_raw.get("min_inliers", lg_cfg.min_inliers))
+        lg_cfg.max_age_frames = int(lg_raw.get("max_age_frames", lg_cfg.max_age_frames))
+        lg_cfg.roi_expand_px = int(lg_raw.get("roi_expand_px", lg_cfg.roi_expand_px))
+        lg_cfg.debug_save = bool(lg_raw.get("debug_save", lg_cfg.debug_save))
+        lg_cfg.corner_refine = bool(lg_raw.get("corner_refine", lg_cfg.corner_refine))
+        lg_cfg.match_threshold = float(lg_raw.get("match_threshold", lg_cfg.match_threshold))
+        lg_cfg.verify_id = bool(lg_raw.get("verify_id", lg_cfg.verify_id))
+        lg_cfg.max_fallback_markers_per_frame = int(lg_raw.get("max_fallback_markers_per_frame", lg_cfg.max_fallback_markers_per_frame))
+        lg_cfg.reacquire_interval_frames = int(lg_raw.get("reacquire_interval_frames", lg_cfg.reacquire_interval_frames))
+        lg_cfg.prefer_roi_matching = bool(lg_raw.get("prefer_roi_matching", lg_cfg.prefer_roi_matching))
+        cfg.lightglue = lg_cfg
+    
     return cfg
