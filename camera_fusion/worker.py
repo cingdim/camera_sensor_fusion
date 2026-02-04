@@ -9,7 +9,7 @@ from typing import Optional
 import cv2
 import numpy as np
 
-from iiot_pipeline.ip_types import Frame
+from iiot_pipeline.ip_types import Frame, Detection
 from iiot_pipeline.services.calib import load_calib
 from iiot_pipeline.services.storage import SessionStorage
 from iiot_pipeline.strategies.preprocess import ColorFrame
@@ -107,6 +107,20 @@ class CameraWorker:
             loc = PnPLocalize(K, dist, self.config.marker_length_m)
 
         detector_state = build_detector(self.config.aruco_dict)
+        
+        # Initialize LightGlue fallback if enabled
+        lightglue_fallback = None
+        if self.config.lightglue is not None and self.config.lightglue.enabled:
+            try:
+                from .fallback import LightGlueFallback
+                lightglue_fallback = LightGlueFallback(
+                    self.config.lightglue,
+                    self.config.aruco_dict
+                )
+                self.logger.info("LightGlue fallback initialized")
+            except Exception as e:
+                self.logger.warning(f"Failed to initialize LightGlue fallback: {e}")
+                lightglue_fallback = None
 
         self.logger.info("session started: %s", session_path)
         self.logger.info("config: %s", self.config.as_dict())
@@ -136,8 +150,30 @@ class CameraWorker:
                 dets = []
                 poses = []
                 pose_map = {}
+                debug_info_list = []
+                
                 if not self.config.no_detect and not self.config.dry_run:
+                    # Step 1: Run ArUco detection
                     dets = detect_markers(f.image, detector_state)
+                    
+                    # Step 2: Build detected_dict for fallback
+                    detected_dict = {d.marker_id: d.corners for d in dets}
+                    
+                    # Step 3: Attempt LightGlue recovery for missing markers
+                    if lightglue_fallback is not None and self.target_ids is not None:
+                        detected_dict, debug_info_list = lightglue_fallback.recover_missing(
+                            f.image,
+                            detected_dict,
+                            self.target_ids
+                        )
+                        
+                        # Rebuild dets list from updated detected_dict
+                        dets = [
+                            Detection(mid, corners, None, None)
+                            for mid, corners in detected_dict.items()
+                        ]
+                    
+                    # Step 4: Continue with existing pose estimation
                     if self.config.marker_lengths_m:
                         poses = loc.estimate_with_lengths(
                             dets,
@@ -168,13 +204,45 @@ class CameraWorker:
                         cv2.LINE_AA,
                     )
 
-                    ids = np.array([d.marker_id for d in dets], dtype=np.int32).reshape(-1, 1)
-                    corners = [d.corners for d in dets]
-                    try:
-                        cv2.aruco.drawDetectedMarkers(draw, corners, ids)
-                    except Exception:
-                        pass
+                    # Build debug info lookup
+                    debug_sources = {}
+                    for info in debug_info_list:
+                        debug_sources[info.marker_id] = info.source
+                    
+                    # Draw detected markers with color coding by source
+                    for det in dets:
+                        source = debug_sources.get(det.marker_id, "aruco")
+                        
+                        # Color code: green=aruco, cyan=lg_track, magenta=lg_reacquire
+                        if source == "aruco":
+                            color = (0, 255, 0)  # Green
+                        elif source == "lg_track":
+                            color = (255, 255, 0)  # Cyan
+                        else:  # lg_reacquire
+                            color = (255, 0, 255)  # Magenta
+                        
+                        # Draw marker corners
+                        corners_int = det.corners.astype(np.int32)
+                        cv2.polylines(draw, [corners_int], True, color, 2)
+                        
+                        # Draw marker ID
+                        center = corners_int.mean(axis=0).astype(np.int32)
+                        label = f"{det.marker_id}"
+                        if source != "aruco":
+                            label += f" ({source})"
+                        
+                        cv2.putText(
+                            draw,
+                            label,
+                            tuple(center),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.5,
+                            color,
+                            2,
+                            cv2.LINE_AA,
+                        )
 
+                    # Draw pose axes
                     for det in dets:
                         pose = pose_map.get(det.marker_id)
                         if pose is None:
@@ -192,6 +260,13 @@ class CameraWorker:
                             pass
 
                     storage.save_annotated(f.idx, draw)
+                    
+                    # Save debug frame if LightGlue debug enabled
+                    if lightglue_fallback is not None and self.config.lightglue.debug_save:
+                        debug_path = Path(storage.session_dir) / "debug_lightglue"
+                        debug_path.mkdir(exist_ok=True)
+                        debug_file = debug_path / f"frame_{f.idx:06d}.png"
+                        cv2.imwrite(str(debug_file), draw)
 
                 if self.config.save_frames:
                     storage.save_frame(f)

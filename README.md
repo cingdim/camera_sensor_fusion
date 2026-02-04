@@ -170,6 +170,118 @@ All config files (JSON or YAML) support these fields:
 | `max_frames` | int or null | `null` | Stop after N frames |
 | `save_annotated` | bool | `true` | Save frames with ArUco markers drawn |
 | `save_frames` | bool | `true` | Save undistorted original frames |
+| `lightglue` | object or null | `null` | LightGlue fallback configuration (see below) |
+
+### LightGlue Fallback (Advanced)
+
+When ArUco detection fails to find expected markers (e.g., due to occlusion, motion blur, lighting), the LightGlue fallback can recover missing markers using SuperPoint feature matching and homography-based corner estimation.
+
+**Features:**
+- Template-based marker re-acquisition using SuperPoint+LightGlue matching
+- Temporal tracking with optical flow for recently-seen markers
+- Homography-based corner recovery with RANSAC
+- Optional corner refinement with sub-pixel accuracy
+- Debug visualization with color-coded marker sources
+
+**Configuration:**
+
+Add a `lightglue` section to your config:
+
+```json
+{
+  "camera_name": "cam1",
+  "device": 0,
+  "target_ids": [0, 1, 2, 3],
+  "lightglue": {
+    "enabled": true,
+    "device": "cpu",
+    "template_dir": "templates/markers",
+    "min_inliers": 4,
+    "max_age_frames": 5,
+    "roi_expand_px": 50,
+    "debug_save": true,
+    "corner_refine": true,
+    "match_threshold": 0.2
+  }
+}
+```
+
+**LightGlue Config Options:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `false` | Enable LightGlue fallback (requires PyTorch + LightGlue) |
+| `device` | string | `"cpu"` | PyTorch device: `"cpu"`, `"cuda"`, or `"cuda:0"` |
+| `template_dir` | string | `"templates/markers"` | Directory containing marker template images (id_<ID>.png) |
+| `min_inliers` | int | `4` | Minimum RANSAC inliers required for valid homography |
+| `max_age_frames` | int | `5` | Max frames since last detection to attempt tracking |
+| `roi_expand_px` | int | `50` | ROI expansion in pixels for optical flow tracking |
+| `debug_save` | bool | `false` | Save debug frames to session folder |
+| `corner_refine` | bool | `true` | Refine corners with cv2.cornerSubPix |
+| `match_threshold` | float | `0.2` | LightGlue matching threshold |
+
+**Setup:**
+
+1. **Install dependencies:**
+   ```bash
+   # CPU version
+   pip install torch --index-url https://download.pytorch.org/whl/cpu
+   pip install lightglue
+   
+   # OR CUDA version
+   pip install torch --index-url https://download.pytorch.org/whl/cu118
+   pip install lightglue
+   ```
+   
+   For Jetson platforms, see `requirements-jetson.txt` for platform-specific instructions.
+
+2. **Generate marker templates:**
+   ```bash
+   python scripts/create_marker_templates.py \
+     --marker-ids 0 1 2 3 \
+     --dict 4x4_50 \
+     --output-dir templates/markers \
+     --size 400
+   ```
+   
+   This creates PNG templates: `templates/markers/id_0.png`, `id_1.png`, etc.
+
+3. **Run with fallback enabled:**
+   ```bash
+   python -m camera_fusion.run --config configs/cam_lightglue_example.json
+   ```
+
+**Visualization:**
+
+When LightGlue fallback is enabled, annotated frames show markers color-coded by detection source:
+- **Green**: ArUco detection (normal)
+- **Cyan**: LightGlue tracking (optical flow)
+- **Magenta**: LightGlue re-acquire (template matching)
+
+Marker labels show source: `ID (LG:track)` or `ID (LG:reacquire)`
+
+**Testing:**
+
+Test the fallback on a saved frame:
+
+```bash
+python scripts/test_lightglue_fallback.py \
+  --frame data/sessions/cam1_session_20260204_120000/frames/frame_000010.png \
+  --templates templates/markers \
+  --marker-ids 0 1 2 3 \
+  --device cpu
+```
+
+**Graceful Degradation:**
+
+If PyTorch or LightGlue are not installed, the system logs a warning and continues with ArUco-only detection (no crashes).
+
+**Performance Notes:**
+
+- CPU inference: ~100-500ms per missing marker
+- CUDA inference: ~20-100ms per missing marker
+- Tracking is faster (~10-30ms) than template re-acquisition
+- Enable `debug_save` only for debugging (increases storage)
 
 ### CLI overrides
 
