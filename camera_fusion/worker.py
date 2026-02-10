@@ -226,21 +226,25 @@ class CameraWorker:
                         cv2.polylines(draw, [corners_int], True, color, 2)
                         
                         # Draw marker ID
-                        center = corners_int.mean(axis=0).astype(np.int32)
+                        # Draw marker ID
+                        center = corners_int.reshape(-1, 2).mean(axis=0)
+                        org = (int(center[0]), int(center[1]))
+
                         label = f"{det.marker_id}"
                         if source != "aruco":
                             label += f" ({source})"
-                        
+
                         cv2.putText(
                             draw,
                             label,
-                            tuple(center),
+                            org,
                             cv2.FONT_HERSHEY_SIMPLEX,
                             0.5,
                             color,
                             2,
                             cv2.LINE_AA,
                         )
+
 
                     # Draw pose axes
                     for det in dets:

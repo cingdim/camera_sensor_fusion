@@ -1,6 +1,6 @@
 {
-  "camera_name": "cam1",
-  "device": "/dev/c920_cam1",
+  "camera_name": "cam2",
+  "device": "/dev/c920_cam2",
   "fps": 15,
   "width": 1280,
   "height": 720,
@@ -23,6 +23,6 @@
   "no_detect": false,
   "dry_run": false,
   "max_frames": null,
-  "save_annotated": false,
-  "save_frames": false
+  "save_annotated": true,
+  "save_frames": true
 }
