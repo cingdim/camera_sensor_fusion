@@ -97,7 +97,57 @@ python -m camera_fusion.launch configs/cam1.json configs/cam2.json
 
 Press `Ctrl+C` once to stop all cameras cleanly.
 
+## Option B: Live Streaming (Jetson → Dell via RTP/UDP)
+
+For distributed setups where **Jetson captures** from USB cameras and **Dell processes** the streams over the network.
+
+### On Jetson (capture & stream)
+
+Stream camera 1 (e.g., `/dev/video8`) to Dell IP `192.168.1.100` on port 5000:
+
+```bash
+gst-launch-1.0 v4l2src device=/dev/video8 ! \
+  video/x-raw,width=1280,height=720,framerate=15/1 ! \
+  videoconvert ! video/x-raw,format=I420 ! \
+  x264enc tune=zerolatency speed-preset=ultrafast bitrate=2000 ! \
+  rtph264pay ! \
+  udpsink host=192.168.1.100 port=5000 sync=false
+```
+
+Stream camera 2 (e.g., `/dev/video4`) to same Dell on port 5002:
+
+```bash
+gst-launch-1.0 v4l2src device=/dev/video4 ! \
+  video/x-raw,width=1280,height=720,framerate=15/1 ! \
+  videoconvert ! video/x-raw,format=I420 ! \
+  x264enc tune=zerolatency speed-preset=ultrafast bitrate=2000 ! \
+  rtph264pay ! \
+  udpsink host=192.168.1.100 port=5002 sync=false
+```
+
+*(Replace `192.168.1.100` with Dell's actual IP address.)*
+
+### On Dell (receive & process)
+
+Use streaming configs (already configured in `configs/cam1_stream.json` and `configs/cam2_stream.json`):
+
+```bash
+python -m camera_fusion.launch configs/cam1_stream.json configs/cam2_stream.json
+```
+
+This runs two workers concurrently:
+- `cam1_stream`: listens on UDP port 5000 (from Jetson cam1)
+- `cam2_stream`: listens on UDP port 5002 (from Jetson cam2)
+
+Press `Ctrl+C` to stop.
+
+**Important:**
+- Jetson and Dell must be on the same network
+- Ports must match: Jetson sends to 5000/5002 → Dell listens on 5000/5002
+- Dell IP in Jetson's `udpsink host=` must be correct
+
 ### Optional: YAML configs
+
 
 Configs are JSON by default. To use YAML instead:
 

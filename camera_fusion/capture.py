@@ -87,3 +87,4 @@ class SyntheticCapture(BaseCapture):
 
     def stop(self) -> None:
         return None
+

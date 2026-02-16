@@ -7,6 +7,17 @@ from typing import Any, Optional
 
 
 @dataclass
+class SourceConfig:
+    """Configuration for frame source (camera, RTP stream, etc.)."""
+    
+    type: str = "v4l2"  # "v4l2", "rtp_h264_udp"
+    port: Optional[int] = None  # For RTP streams: UDP port
+    
+    def as_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
 class LightGlueConfig:
     enabled: bool = False
     device: str = "cpu"  # "cpu", "cuda", or "cuda:0"
@@ -48,6 +59,7 @@ class CameraConfig:
     save_annotated: bool = True
     save_frames: bool = True
     lightglue: Optional[LightGlueConfig] = None
+    source: Optional[SourceConfig] = None
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -144,5 +156,15 @@ def load_config(path: str | Path) -> CameraConfig:
         lg_cfg.reacquire_interval_frames = int(lg_raw.get("reacquire_interval_frames", lg_cfg.reacquire_interval_frames))
         lg_cfg.prefer_roi_matching = bool(lg_raw.get("prefer_roi_matching", lg_cfg.prefer_roi_matching))
         cfg.lightglue = lg_cfg
+    
+    # Load source config if present
+    src_raw = raw.get("source")
+    if src_raw is not None and isinstance(src_raw, dict):
+        src_cfg = SourceConfig()
+        src_cfg.type = str(src_raw.get("type", src_cfg.type))
+        src_cfg.port = src_raw.get("port", src_cfg.port)
+        if src_cfg.port is not None:
+            src_cfg.port = int(src_cfg.port)
+        cfg.source = src_cfg
     
     return cfg
