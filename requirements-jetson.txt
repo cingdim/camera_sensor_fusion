@@ -1,8 +1,8 @@
 # Requirements for Jetson platforms (ARM64 with CUDA)
 # For LightGlue fallback support on NVIDIA Jetson devices
 
-opencv-python
-numpy
+opencv-python==4.11.0.86
+numpy==1.26.4
 
 # PyTorch for Jetson
 # Note: Install from NVIDIA's pre-built wheels for Jetson
