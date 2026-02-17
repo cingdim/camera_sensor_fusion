@@ -19,6 +19,7 @@ from iiot_pipeline.strategies.localize_pnp import PnPLocalize
 from .capture import BaseCapture, SyntheticCapture, USBOpenCVCapture
 from .config import CameraConfig
 from .detect import build_detector, detect_markers
+from .frame_source import FrameSource, DeviceCameraSource, RTPStreamSource
 from .logging_utils import add_file_handler, setup_logger
 from .output import CsvOutput, OutputSink
 from .transforms import compute_relative_pose
@@ -51,6 +52,7 @@ class CameraWorker:
         logger=None,
         outputs: Optional[list[OutputSink]] = None,
         capture: Optional[BaseCapture] = None,
+        frame_source: Optional[FrameSource] = None,
     ):
         self.config = config
         self.logger = logger or setup_logger(config.camera_name)
@@ -61,7 +63,8 @@ class CameraWorker:
             outputs = [CsvOutput(use_reference=use_ref)]
         
         self.outputs = outputs
-        self.capture = capture
+        self.capture = capture  # Kept for backward compatibility
+        self.frame_source = frame_source
         self._stop_event = threading.Event()
 
         if config.target_ids is None:
@@ -73,6 +76,7 @@ class CameraWorker:
         self._stop_event.set()
 
     def _build_capture(self) -> BaseCapture:
+        """DEPRECATED: Use _build_frame_source instead."""
         if self.capture is not None:
             return self.capture
         if self.config.dry_run:
@@ -83,6 +87,34 @@ class CameraWorker:
             self.config.width,
             self.config.height,
         )
+
+    def _build_frame_source(self) -> FrameSource:
+        """Build a FrameSource for input frames."""
+        if self.frame_source is not None:
+            return self.frame_source
+        
+        # Determine source type from config
+        source_config = self.config.source
+        if source_config is None or source_config.type == "v4l2":
+            # Default: local USB camera
+            return DeviceCameraSource(
+                self.config.device,
+                self.config.fps,
+                self.config.width,
+                self.config.height,
+            )
+        elif source_config.type == "rtp_h264_udp":
+            # RTP stream over UDP
+            if source_config.port is None:
+                raise ValueError("source.port must be set for rtp_h264_udp type")
+            return RTPStreamSource(
+                source_config.port,
+                self.config.fps,
+                self.config.width,
+                self.config.height,
+            )
+        else:
+            raise ValueError(f"Unsupported source type: {source_config.type}")
 
     def run(self) -> SessionSummary:
         storage = SessionStorage(self.config.session_root, name=f"{self.config.camera_name}_session")
@@ -95,7 +127,7 @@ class CameraWorker:
         for out in self.outputs:
             out.open(Path(storage.session_dir))
 
-        cap = self._build_capture()
+        frame_source = self._build_frame_source()
         pre = ColorFrame()
 
         if self.config.dry_run:
@@ -125,7 +157,7 @@ class CameraWorker:
         self.logger.info("session started: %s", session_path)
         self.logger.info("config: %s", self.config.as_dict())
 
-        cap.start()
+        frame_source.start()
         t0 = time.time()
         frames = 0
         errors = 0
@@ -139,10 +171,14 @@ class CameraWorker:
                 if self.config.max_frames and frames >= self.config.max_frames:
                     break
 
-                f = cap.next_frame()
-                if f is None:
+                frame_data = frame_source.read()
+                if frame_data is None:
                     errors += 1
                     continue
+                
+                frame_img, timestamp_ns, frame_id = frame_data
+                ts_iso = time.strftime("%Y-%m-%dT%H:%M:%S")
+                f = Frame(frame_id, ts_iso, frame_img)
 
                 f = pre.apply(f)
                 f = und.apply(f)
@@ -344,7 +380,7 @@ class CameraWorker:
 
         finally:
             try:
-                cap.stop()
+                frame_source.stop()
             except Exception:
                 pass
 
