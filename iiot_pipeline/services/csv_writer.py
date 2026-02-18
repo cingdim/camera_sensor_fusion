@@ -5,16 +5,16 @@ import io
 class CsvWriter:
     # Match mock.py header order
     HEADER = [
-        "recorded_at",
-        "frame_idx", "marker_id",
+        "frame_idx",
+        "recorded_at", "marker_id",
         "rvec_x", "rvec_y", "rvec_z",
         "tvec_x", "tvec_y", "tvec_z",
         "image_path"
     ]
 
     HEADER_WITH_LENGTH = [
-        "recorded_at",
-        "frame_idx", "marker_id",
+        "frame_idx",
+        "recorded_at", "marker_id",
         "rvec_x", "rvec_y", "rvec_z",
         "tvec_x", "tvec_y", "tvec_z",
         "length_m",
@@ -22,8 +22,8 @@ class CsvWriter:
     ]
 
     HEADER_WITH_REF = [
-        "recorded_at",
-        "frame_idx", "marker_id",
+        "frame_idx",
+        "recorded_at", "marker_id",
         "rvec_x", "rvec_y", "rvec_z",
         "tvec_x", "tvec_y", "tvec_z",
         "ref_visible",
@@ -33,8 +33,8 @@ class CsvWriter:
     ]
 
     HEADER_WITH_REF_AND_LENGTH = [
-        "recorded_at",
-        "frame_idx", "marker_id",
+        "frame_idx",
+        "recorded_at", "marker_id",
         "rvec_x", "rvec_y", "rvec_z",
         "tvec_x", "tvec_y", "tvec_z",
         "ref_visible",
@@ -74,6 +74,10 @@ class CsvWriter:
             a += [float("nan")] * (3 - len(a))
         return a[:3]
 
+    def _map_tvec_axes(self, tvec_xyz):
+        x, y, z = tvec_xyz
+        return [y, z, x]
+
     def append(
         self,
         ts_unix,
@@ -88,15 +92,15 @@ class CsvWriter:
         length_m=None,
     ):
         r = self._vec3(rvec)
-        t = self._vec3(tvec)
+        t = self._map_tvec_axes(self._vec3(tvec))
         
         if self.use_reference:
             ref_r = self._vec3(ref_rvec)
             ref_t = self._vec3(ref_tvec)
             ref_vis = 1 if ref_visible else 0
             row = [
-                f"{ts_unix:.6f}",
-                frame_idx, marker_id,
+                frame_idx,
+                f"{ts_unix:.6f}", marker_id,
                 *r, *t,
                 ref_vis,
                 *ref_r, *ref_t,
@@ -107,8 +111,8 @@ class CsvWriter:
             self._w.writerow(row)
         else:
             row = [
-                f"{ts_unix:.6f}",
-                frame_idx, marker_id,
+                frame_idx,
+                f"{ts_unix:.6f}", marker_id,
                 *r, *t,
             ]
             if self.use_length:
@@ -126,13 +130,17 @@ class CsvWriter:
                 a += [float("nan")] * (3 - len(a))
             return a[:3]
 
+        def _map_tvec_axes_local(tvec_xyz):
+            x, y, z = tvec_xyz
+            return [y, z, x]
+
         r = _vec3_local(rvec)
-        t = _vec3_local(tvec)
+        t = _map_tvec_axes_local(_vec3_local(tvec))
         buf = io.StringIO()
         w = csv.writer(buf)
         row = [
-            f"{ts_unix:.6f}",
-            frame_idx, marker_id,
+            frame_idx,
+            f"{ts_unix:.6f}", marker_id,
             *r, *t,
         ]
         if length_m is not None:

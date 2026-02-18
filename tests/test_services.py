@@ -39,12 +39,12 @@ def test_csv_writer_persists_rows_and_formats_lines(tmp_path):
     writer.close()
 
     lines = csv_path.read_text().strip().splitlines()
-    assert lines[0].startswith("recorded_at")
-    assert lines[1].startswith("1.234567")
+    assert lines[0].startswith("frame_idx")
+    assert lines[1].startswith("1,1.234567")
     assert lines[2].split(",")[-1] == "/tmp/other.jpg"
 
     inline = CsvWriter.to_csv_line(3.0, 5, 9, None, None, "img")
-    assert inline.startswith("3.000000")
+    assert inline.startswith("5,3.000000")
 
 
 def test_load_calib_reads_expected_nodes():

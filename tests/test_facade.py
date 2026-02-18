@@ -111,8 +111,8 @@ class DummyPublisher:
 
 class RecordingCsvWriter:
     HEADER = [
-        "recorded_at",
         "frame_idx",
+        "recorded_at",
         "marker_id",
         "rvec_x",
         "rvec_y",

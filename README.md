@@ -386,13 +386,13 @@ Each camera worker creates a unique session folder:
 data/sessions/<camera_name>_session_YYYYMMDD_HHMMSS/
   frames/             # undistorted originals (no drawings)
   annotated/          # frames with ArUco markers + axes drawn
-  detections.csv      # recorded_at, frame_idx, marker_id, rvec_*, tvec_*, [ref_visible, ref_rvec_*, ref_tvec_*], length_m, image_path
+  detections.csv      # frame_idx, recorded_at, marker_id, rvec_*, tvec_*, [ref_visible, ref_rvec_*, ref_tvec_*], length_m, image_path
   logs/session.log    # per-camera logs with [camera_name] prefix
   config.json         # snapshot of config used for this session
 ```
 
 **CSV columns:**
-- Without reference: `recorded_at, frame_idx, marker_id, rvec_x/y/z, tvec_x/y/z, length_m, image_path`
+- Without reference: `frame_idx, recorded_at, marker_id, rvec_x/y/z, tvec_x/y/z, length_m, image_path`
 - With reference: adds `ref_visible, ref_rvec_x/y/z, ref_tvec_x/y/z` (poses relative to reference marker)
 
 Example with two cameras:

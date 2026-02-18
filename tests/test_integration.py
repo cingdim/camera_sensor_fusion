@@ -137,8 +137,8 @@ def test_pipeline_integration_full_flow(tmp_path, monkeypatch):
     with csv_path.open() as fh:
         rows = list(csv.reader(fh))
     assert rows[0] == [
-        "recorded_at",
         "frame_idx",
+        "recorded_at",
         "marker_id",
         "rvec_x",
         "rvec_y",
@@ -148,10 +148,11 @@ def test_pipeline_integration_full_flow(tmp_path, monkeypatch):
         "tvec_z",
         "image_path",
     ]
-    assert rows[1][0] == "0.020000"
-    assert rows[1][1:3] == ["1", "25"]
+    assert rows[1][0] == "1"
+    assert rows[1][1] == "0.020000"
+    assert rows[1][2] == "25"
     assert rows[1][3:6] == ["0.1", "0.2", "0.3"]
-    assert rows[1][6:9] == ["0.4", "0.5", "0.6"]
+    assert rows[1][6:9] == ["0.5", "0.6", "0.4"]
 
     assert publisher.lines[0] == ",".join(rows[0])
     assert publisher.lines[1] == ",".join(rows[1])
