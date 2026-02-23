@@ -21,7 +21,7 @@ from .config import CameraConfig
 from .detect import build_detector, detect_markers
 from .frame_source import FrameSource, DeviceCameraSource, RTPStreamSource
 from .logging_utils import add_file_handler, setup_logger
-from .output import CsvOutput, OutputSink
+from .output import CsvOutput, MqttOutput, OutputSink
 from .transforms import compute_relative_pose
 
 
@@ -61,6 +61,18 @@ class CameraWorker:
         if outputs is None:
             use_ref = config.reference_id is not None
             outputs = [CsvOutput(use_reference=use_ref)]
+            if config.publish:
+                outputs.append(
+                    MqttOutput(
+                        broker_ip=config.broker_ip,
+                        broker_port=config.broker_port,
+                        device_id=config.device_id,
+                        client_type=config.client_type,
+                        camera_name=config.camera_name,
+                        use_reference=use_ref,
+                        logger=self.logger,
+                    )
+                )
         
         self.outputs = outputs
         self.capture = capture  # Kept for backward compatibility

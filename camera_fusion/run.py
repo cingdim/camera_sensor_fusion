@@ -29,6 +29,15 @@ def _build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--no-save-frames", action="store_true")
     ap.add_argument("--save-annotated", action="store_true")
     ap.add_argument("--no-save-annotated", action="store_true")
+    ap.add_argument("--publish", action="store_true")
+    ap.add_argument("--no-publish", action="store_true")
+    ap.add_argument("--broker-ip")
+    ap.add_argument("--broker-port", type=int)
+    ap.add_argument("--device-id")
+    ap.add_argument(
+        "--client-type",
+        choices=["CAMERA", "IMU", "AI", "ROBOT"],
+    )
 
     return ap
 
@@ -49,6 +58,12 @@ def _apply_args(cfg: CameraConfig, args: argparse.Namespace) -> CameraConfig:
     if args.no_save_annotated:
         save_annotated = False
 
+    publish = None
+    if args.publish:
+        publish = True
+    if args.no_publish:
+        publish = False
+
     cfg.apply_overrides(
         camera_name=args.camera_name,
         device=device,
@@ -67,6 +82,11 @@ def _apply_args(cfg: CameraConfig, args: argparse.Namespace) -> CameraConfig:
         max_frames=args.max_frames,
         save_frames=save_frames,
         save_annotated=save_annotated,
+        publish=publish,
+        broker_ip=args.broker_ip,
+        broker_port=args.broker_port,
+        device_id=args.device_id,
+        client_type=args.client_type,
     )
     return cfg
 
