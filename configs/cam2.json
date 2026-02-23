@@ -1,6 +1,6 @@
 {
   "camera_name": "cam2",
-  "device": "/dev/c920_cam2",
+  "device": "/dev/video2",
   "fps": 15,
   "width": 1280,
   "height": 720,
