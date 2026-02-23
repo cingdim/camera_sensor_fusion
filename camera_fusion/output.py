@@ -28,6 +28,7 @@ class OutputSink(ABC):
         ref_rvec = None,
         ref_tvec = None,
         length_m = None,
+        capture_time: float | None = None,
     ) -> None: ...
 
     @abstractmethod
@@ -60,6 +61,7 @@ class CsvOutput(OutputSink):
         ref_rvec = None,
         ref_tvec = None,
         length_m = None,
+        capture_time: float | None = None,
     ) -> None:
         if self._writer is None:
             return
@@ -67,6 +69,7 @@ class CsvOutput(OutputSink):
             ts_unix, frame_idx, marker_id, rvec, tvec, image_path,
             ref_visible=ref_visible, ref_rvec=ref_rvec, ref_tvec=ref_tvec,
             length_m=length_m,
+            capture_time=capture_time,
         )
 
     def close(self) -> None:
@@ -91,6 +94,7 @@ class NullOutput(OutputSink):
         ref_rvec = None,
         ref_tvec = None,
         length_m = None,
+        capture_time: float | None = None,
     ) -> None:
         return None
 
@@ -149,16 +153,19 @@ class MqttOutput(OutputSink):
         ref_rvec,
         ref_tvec,
         length_m,
+        capture_time: float | None,
     ):
         r = self._vec3(rvec)
         t = self._map_tvec_axes(self._vec3(tvec))
         img = image_path if image_path is not None else ""
+        capture_value = float("nan") if capture_time is None else float(capture_time)
 
         if self.use_reference:
             ref_r = self._vec3(ref_rvec)
             ref_t = self._vec3(ref_tvec)
             row = [
                 frame_idx,
+                f"{capture_value:.6f}",
                 f"{ts_unix:.6f}", marker_id,
                 *r, *t,
                 1 if ref_visible else 0,
@@ -171,6 +178,7 @@ class MqttOutput(OutputSink):
 
         row = [
             frame_idx,
+            f"{capture_value:.6f}",
             f"{ts_unix:.6f}", marker_id,
             *r, *t,
         ]
@@ -227,6 +235,7 @@ class MqttOutput(OutputSink):
         ref_rvec = None,
         ref_tvec = None,
         length_m = None,
+        capture_time: float | None = None,
     ) -> None:
         if self._client is None:
             return
@@ -247,6 +256,7 @@ class MqttOutput(OutputSink):
                 ref_rvec,
                 ref_tvec,
                 length_m,
+                capture_time,
             )
             self._client.publish(self._row_to_csv_line(row))
         except Exception as exc:

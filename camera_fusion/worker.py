@@ -189,8 +189,9 @@ class CameraWorker:
                     continue
                 
                 frame_img, timestamp_ns, frame_id = frame_data
+                capture_time = timestamp_ns / 1_000_000_000.0
                 ts_iso = time.strftime("%Y-%m-%dT%H:%M:%S")
-                f = Frame(frame_id, ts_iso, frame_img)
+                f = Frame(frame_id, ts_iso, frame_img, capture_time=capture_time)
 
                 f = pre.apply(f)
                 f = und.apply(f)
@@ -380,6 +381,7 @@ class CameraWorker:
                             ref_rvec=ref_rvec,
                             ref_tvec=ref_tvec,
                             length_m=length_m,
+                            capture_time=f.capture_time,
                         )
 
                 self.logger.info(

@@ -35,6 +35,7 @@ def test_usb_capture_reads_frames(mock_cap_class, mock_strftime):
     assert frame.image == "image"
     assert frame.idx == 1
     assert frame.ts_iso == "ts"
+    assert frame.capture_time is not None
     mock_cap.release.assert_called_once()
 
 

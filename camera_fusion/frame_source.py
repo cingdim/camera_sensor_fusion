@@ -91,9 +91,11 @@ class DeviceCameraSource(FrameSource):
         ok, img = self.cap.read()
         if not ok:
             return None
+
+        capture_time = time.time()
         
         self.frame_id += 1
-        timestamp_ns = int(time.time_ns())
+        timestamp_ns = int(capture_time * 1_000_000_000)
         
         return (img, timestamp_ns, self.frame_id)
 
@@ -166,9 +168,11 @@ class RTPStreamSource(FrameSource):
         ok, img = self.cap.read()
         if not ok:
             raise RuntimeError("Failed to read frame from RTP stream")
+
+        capture_time = time.time()
         
         self.frame_id += 1
-        timestamp_ns = int(time.time_ns())
+        timestamp_ns = int(capture_time * 1_000_000_000)
         
         return (img, timestamp_ns, self.frame_id)
 

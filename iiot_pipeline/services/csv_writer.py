@@ -6,6 +6,7 @@ class CsvWriter:
     # Match mock.py header order
     HEADER = [
         "frame_idx",
+        "capture_time",
         "recorded_at", "marker_id",
         "rvec_x", "rvec_y", "rvec_z",
         "tvec_x", "tvec_y", "tvec_z",
@@ -14,6 +15,7 @@ class CsvWriter:
 
     HEADER_WITH_LENGTH = [
         "frame_idx",
+        "capture_time",
         "recorded_at", "marker_id",
         "rvec_x", "rvec_y", "rvec_z",
         "tvec_x", "tvec_y", "tvec_z",
@@ -23,6 +25,7 @@ class CsvWriter:
 
     HEADER_WITH_REF = [
         "frame_idx",
+        "capture_time",
         "recorded_at", "marker_id",
         "rvec_x", "rvec_y", "rvec_z",
         "tvec_x", "tvec_y", "tvec_z",
@@ -34,6 +37,7 @@ class CsvWriter:
 
     HEADER_WITH_REF_AND_LENGTH = [
         "frame_idx",
+        "capture_time",
         "recorded_at", "marker_id",
         "rvec_x", "rvec_y", "rvec_z",
         "tvec_x", "tvec_y", "tvec_z",
@@ -90,9 +94,11 @@ class CsvWriter:
         ref_rvec=None,
         ref_tvec=None,
         length_m=None,
+        capture_time=None,
     ):
         r = self._vec3(rvec)
         t = self._map_tvec_axes(self._vec3(tvec))
+        capture_value = float("nan") if capture_time is None else float(capture_time)
         
         if self.use_reference:
             ref_r = self._vec3(ref_rvec)
@@ -100,6 +106,7 @@ class CsvWriter:
             ref_vis = 1 if ref_visible else 0
             row = [
                 frame_idx,
+                f"{capture_value:.6f}",
                 f"{ts_unix:.6f}", marker_id,
                 *r, *t,
                 ref_vis,
@@ -112,6 +119,7 @@ class CsvWriter:
         else:
             row = [
                 frame_idx,
+                f"{capture_value:.6f}",
                 f"{ts_unix:.6f}", marker_id,
                 *r, *t,
             ]
@@ -121,7 +129,17 @@ class CsvWriter:
             self._w.writerow(row)
 
     @classmethod
-    def to_csv_line(cls, ts_unix, frame_idx, marker_id, rvec, tvec, img_path, length_m=None):
+    def to_csv_line(
+        cls,
+        ts_unix,
+        frame_idx,
+        marker_id,
+        rvec,
+        tvec,
+        img_path,
+        length_m=None,
+        capture_time=None,
+    ):
         def _vec3_local(vec):
             if vec is None:
                 return [float("nan"), float("nan"), float("nan")]
@@ -136,10 +154,12 @@ class CsvWriter:
 
         r = _vec3_local(rvec)
         t = _map_tvec_axes_local(_vec3_local(tvec))
+        capture_value = float("nan") if capture_time is None else float(capture_time)
         buf = io.StringIO()
         w = csv.writer(buf)
         row = [
             frame_idx,
+            f"{capture_value:.6f}",
             f"{ts_unix:.6f}", marker_id,
             *r, *t,
         ]

@@ -17,9 +17,10 @@ class USBWebcamCapture:
     def next_frame(self) -> Frame | None:
         ok, img = self.cap.read()
         if not ok: return None
+        capture_time = time.time()
         self.idx += 1
         ts = time.strftime("%Y-%m-%dT%H:%M:%S")
-        return Frame(self.idx, ts, img)
+        return Frame(self.idx, ts, img, capture_time=capture_time)
 
     def stop(self):
         if self.cap is not None:

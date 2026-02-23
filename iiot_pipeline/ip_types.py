@@ -6,6 +6,7 @@ class Frame:
     idx: int
     ts_iso: str
     image: Any  # numpy array
+    capture_time: float | None = None
 
 @dataclass
 class Detection:

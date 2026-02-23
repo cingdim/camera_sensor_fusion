@@ -144,6 +144,7 @@ class CameraPipelineFacade:
                     rvec = poses[i].rvec if i < len(poses) else None
                     tvec = poses[i].tvec if i < len(poses) else None
                     ts_unix = time.time()
+                    capture_time = f.capture_time
 
                     # local file append (DB schema order)
                     csv_local.append(
@@ -153,6 +154,7 @@ class CameraPipelineFacade:
                         rvec,
                         tvec,
                         self.store.last_path,
+                        capture_time=capture_time,
                     )
 
                     # publish line as CSV string (DB schema order)
@@ -166,6 +168,7 @@ class CameraPipelineFacade:
                                 rvec,
                                 tvec,
                                 str(self.store.last_path),
+                                capture_time=capture_time,
                             )
                             self.publisher.publish(line)
                         except Exception as e:
