@@ -1,0 +1,33 @@
+2026-02-25 19:00:48,877 INFO [cam1] session started: data/sessions/cam1_session_20260225_190048
+2026-02-25 19:00:48,878 INFO [cam1] config: {'camera_name': 'cam1', 'device': '/dev/c920_cam1', 'fps': 15, 'width': 1280, 'height': 720, 'calibration_path': 'calib/c920s_1920x1080_simple.yml', 'session_root': 'data/sessions', 'duration_sec': 30.0, 'aruco_dict': '4x4_50', 'marker_length_m': 0.035, 'target_ids': [0, 1, 2, 3], 'reference_id': 0, 'marker_lengths_m': {1: 0.15, 2: 0.0485, 3: 0.05}, 'no_detect': False, 'dry_run': False, 'max_frames': None, 'save_annotated': False, 'save_frames': False, 'publish': True, 'broker_ip': '192.168.1.76', 'broker_port': 1883, 'device_id': 'CameraPi', 'client_type': 'CAMERA', 'lightglue': None, 'source': None}
+2026-02-25 19:00:50,617 INFO [cam1] frame=1 saved=None dets=0
+2026-02-25 19:00:50,667 INFO [cam1] frame=2 saved=None dets=0
+2026-02-25 19:00:50,733 INFO [cam1] frame=3 saved=None dets=0
+2026-02-25 19:00:50,805 INFO [cam1] frame=4 saved=None dets=0
+2026-02-25 19:00:50,853 INFO [cam1] frame=5 saved=None dets=0
+2026-02-25 19:00:50,931 INFO [cam1] frame=6 saved=None dets=0
+2026-02-25 19:00:50,990 INFO [cam1] frame=7 saved=None dets=0
+2026-02-25 19:00:51,063 INFO [cam1] frame=8 saved=None dets=0
+2026-02-25 19:00:51,130 INFO [cam1] frame=9 saved=None dets=0
+2026-02-25 19:00:51,196 INFO [cam1] frame=10 saved=None dets=0
+2026-02-25 19:00:51,263 INFO [cam1] frame=11 saved=None dets=0
+2026-02-25 19:00:51,329 INFO [cam1] frame=12 saved=None dets=0
+2026-02-25 19:00:51,405 INFO [cam1] frame=13 saved=None dets=0
+2026-02-25 19:00:51,460 INFO [cam1] frame=14 saved=None dets=0
+2026-02-25 19:00:51,531 INFO [cam1] frame=15 saved=None dets=0
+2026-02-25 19:00:51,602 INFO [cam1] frame=16 saved=None dets=0
+2026-02-25 19:00:51,662 INFO [cam1] frame=17 saved=None dets=0
+2026-02-25 19:00:51,729 INFO [cam1] frame=18 saved=None dets=0
+2026-02-25 19:00:51,803 INFO [cam1] frame=19 saved=None dets=0
+2026-02-25 19:00:51,861 INFO [cam1] frame=20 saved=None dets=0
+2026-02-25 19:00:51,938 INFO [cam1] frame=21 saved=None dets=0
+2026-02-25 19:00:52,000 INFO [cam1] frame=22 saved=None dets=0
+2026-02-25 19:00:52,059 INFO [cam1] frame=23 saved=None dets=0
+2026-02-25 19:00:52,130 INFO [cam1] frame=24 saved=None dets=0
+2026-02-25 19:00:52,198 INFO [cam1] frame=25 saved=None dets=0
+2026-02-25 19:00:52,263 INFO [cam1] frame=26 saved=None dets=0
+2026-02-25 19:00:52,327 INFO [cam1] frame=27 saved=None dets=0
+2026-02-25 19:00:52,395 INFO [cam1] frame=28 saved=None dets=0
+2026-02-25 19:00:52,464 INFO [cam1] frame=29 saved=None dets=0
+2026-02-25 19:00:52,529 INFO [cam1] frame=30 saved=None dets=0
+2026-02-25 19:00:52,829 INFO [cam1] summary frames=30 avg_fps=8.12 errors=1
