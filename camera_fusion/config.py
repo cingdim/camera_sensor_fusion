@@ -63,6 +63,10 @@ class CameraConfig:
     broker_port: int = 1883
     device_id: str = "CameraPi"
     client_type: str = "CAMERA"
+    expected_marker_count: int = 3
+    metrics_enabled: bool = True
+    metrics_flush_every_n_frames: int = 30
+    metrics_primary_marker_strategy: str = "min_id"
     lightglue: Optional[LightGlueConfig] = None
     source: Optional[SourceConfig] = None
 
@@ -147,6 +151,14 @@ def load_config(path: str | Path) -> CameraConfig:
     cfg.broker_port = int(raw.get("broker_port", cfg.broker_port))
     cfg.device_id = str(raw.get("device_id", cfg.device_id))
     cfg.client_type = str(raw.get("client_type", cfg.client_type))
+    cfg.expected_marker_count = int(raw.get("expected_marker_count", cfg.expected_marker_count))
+    cfg.metrics_enabled = bool(raw.get("metrics_enabled", cfg.metrics_enabled))
+    cfg.metrics_flush_every_n_frames = int(
+        raw.get("metrics_flush_every_n_frames", cfg.metrics_flush_every_n_frames)
+    )
+    cfg.metrics_primary_marker_strategy = str(
+        raw.get("metrics_primary_marker_strategy", cfg.metrics_primary_marker_strategy)
+    )
     
     # Load lightglue config if present
     lg_raw = raw.get("lightglue")

@@ -69,6 +69,16 @@ Each camera runs in its own process with an isolated config and output folder pr
    ls data/sessions/cam1_session_*/
    ```
 
+Each camera session folder now also includes baseline ArUco metrics files:
+- `metrics_frames.csv`: per-frame detection count, success/partial ratio, primary-marker pose, and latency measurements
+- `metrics_summary.json`: aggregate success rate (`success_rate_all3`), pose stability stddevs, and latency summary stats
+
+To quickly print the newest metrics file paths for cam1/cam2:
+```bash
+python scripts/show_latest_metrics.py
+```
+Add `--show-summary` to print the latest `metrics_summary.json` content.
+
 ### One camera
 
 Run with a config file:
@@ -220,6 +230,10 @@ All config files (JSON or YAML) support these fields:
 | `max_frames` | int or null | `null` | Stop after N frames |
 | `save_annotated` | bool | `true` | Save frames with ArUco markers drawn |
 | `save_frames` | bool | `true` | Save undistorted original frames |
+| `expected_marker_count` | int | `3` | Expected number of visible markers per frame for success-rate metrics |
+| `metrics_enabled` | bool | `true` | Enable per-camera `metrics_frames.csv` and `metrics_summary.json` in each session folder |
+| `metrics_flush_every_n_frames` | int | `30` | Flush metrics CSV to disk every N frames for interruption robustness |
+| `metrics_primary_marker_strategy` | string | `"min_id"` | Primary marker choice for pose stability logging (`min_id` supported) |
 | `lightglue` | object or null | `null` | LightGlue fallback configuration (see below) |
 
 ### LightGlue Fallback (Advanced)
@@ -387,6 +401,8 @@ data/sessions/<camera_name>_session_YYYYMMDD_HHMMSS/
   frames/             # undistorted originals (no drawings)
   annotated/          # frames with ArUco markers + axes drawn
   detections.csv      # frame_idx, recorded_at, marker_id, rvec_*, tvec_*, [ref_visible, ref_rvec_*, ref_tvec_*], length_m, image_path
+  metrics_frames.csv  # per-frame baseline metrics (counts, success, pose, timing)
+  metrics_summary.json# aggregate baseline metrics (rates, stddev stability, latency)
   logs/session.log    # per-camera logs with [camera_name] prefix
   config.json         # snapshot of config used for this session
 ```

@@ -21,6 +21,7 @@ from .config import CameraConfig
 from .detect import build_detector, detect_markers
 from .frame_source import FrameSource, DeviceCameraSource, RTPStreamSource
 from .logging_utils import add_file_handler, setup_logger
+from .metrics_logger import CameraMetricsLogger
 from .output import CsvOutput, MqttOutput, OutputSink
 from .transforms import compute_relative_pose
 
@@ -133,6 +134,15 @@ class CameraWorker:
         session_path = storage.begin()
         storage.write_manifest(self.config.as_dict())
 
+        metrics_logger: Optional[CameraMetricsLogger] = None
+        if self.config.metrics_enabled:
+            metrics_logger = CameraMetricsLogger(
+                storage.session_dir,
+                expected_marker_count=self.config.expected_marker_count,
+                flush_every_n_frames=self.config.metrics_flush_every_n_frames,
+                primary_marker_strategy=self.config.metrics_primary_marker_strategy,
+            )
+
         log_file = str(Path(storage.logs_dir) / "session.log")
         add_file_handler(self.logger, self.config.camera_name, log_file)
 
@@ -176,6 +186,8 @@ class CameraWorker:
 
         try:
             while True:
+                frame_loop_start = time.perf_counter()
+
                 if self._stop_event.is_set():
                     break
                 if self.config.duration_sec and (time.time() - t0) >= self.config.duration_sec:
@@ -200,8 +212,11 @@ class CameraWorker:
                 poses = []
                 pose_map = {}
                 debug_info_list = []
+                aruco_detect_ms = 0.0
                 
                 if not self.config.no_detect and not self.config.dry_run:
+                    aruco_start = time.perf_counter()
+
                     # Step 1: Run ArUco detection
                     dets = detect_markers(f.image, detector_state)
                     
@@ -237,6 +252,8 @@ class CameraWorker:
                         for i, d in enumerate(dets)
                         if i < len(poses) and poses[i] is not None
                     }
+
+                    aruco_detect_ms = (time.perf_counter() - aruco_start) * 1000.0
 
                 if dets and self.config.save_annotated:
                     draw = f.image.copy()
@@ -390,9 +407,27 @@ class CameraWorker:
                     storage.last_path,
                     len(dets),
                 )
+
+                total_frame_ms = (time.perf_counter() - frame_loop_start) * 1000.0
+                if metrics_logger is not None:
+                    metrics_logger.log_frame(
+                        timestamp=f.ts_iso,
+                        frame_index=f.idx,
+                        detected_marker_ids=[d.marker_id for d in dets],
+                        pose_map=pose_map,
+                        aruco_detect_ms=aruco_detect_ms,
+                        total_frame_ms=total_frame_ms,
+                    )
+
                 frames += 1
 
         finally:
+            if metrics_logger is not None:
+                try:
+                    metrics_logger.finalize()
+                except Exception:
+                    self.logger.exception("failed to finalize metrics logger")
+
             try:
                 frame_source.stop()
             except Exception:
