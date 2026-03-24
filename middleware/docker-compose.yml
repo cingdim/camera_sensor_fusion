@@ -17,4 +17,4 @@ services:
       - ../calib:/app/calib
       - ../data:/app/data
       - ../logs:/app/logs
-    command: python -m camera_fusion.launch configs/cam1.json configs/cam2.json
+    command: python3 -m camera_fusion.launch configs/cam2.json

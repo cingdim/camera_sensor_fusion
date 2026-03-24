@@ -16,7 +16,7 @@ data/sessions/
 *.tgz
 *.xz
 tmp*/
-
+.venv-system/
 
 # calib/*.yml
 .vscode/

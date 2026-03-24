@@ -1,5 +1,4 @@
-# Middleware container for the camera_sensor_fusion Python stack.
-FROM python:3.11-slim
+FROM debian:bookworm-slim
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -7,22 +6,29 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        python3 \
+        python3-pip \
+        python3-venv \
+        python3-opencv \
         ffmpeg \
         gstreamer1.0-tools \
         gstreamer1.0-plugins-base \
         gstreamer1.0-plugins-good \
+        gstreamer1.0-plugins-bad \
+        gstreamer1.0-libav \
+        libgstreamer1.0-0 \
+        libgstreamer-plugins-base1.0-0 \
         libgl1 \
         libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency files first for better layer caching.
 WORKDIR /app
-COPY requirements.txt ./
-RUN pip install --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
 
-# Copy the remainder of the project into /app.
+COPY requirements.txt ./
+RUN python3 -m pip install --break-system-packages --upgrade pip \
+    && grep -v opencv-python requirements.txt > req.txt \
+    && python3 -m pip install --break-system-packages --no-cache-dir -r req.txt
+
 COPY . /app
 
-# Default command matches the existing manual invocation.
-CMD ["python", "-m", "camera_fusion.launch", "configs/cam1.json", "configs/cam2.json"]
+CMD ["python3", "-m", "camera_fusion.launch", "configs/cam1.json", "configs/cam2.json"]
