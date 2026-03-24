@@ -1,5 +1,6 @@
 opencv-python
 numpy
+facade-sdk==0.4.3
 # If ArUco isn't available, install:
 # opencv-contrib-python
 
