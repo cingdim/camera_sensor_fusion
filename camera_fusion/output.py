@@ -174,6 +174,7 @@ class MqttOutput(OutputSink):
             if self.use_length:
                 row.append(length_m)
             row.append(img)
+            row.append(self.device_id)
             return row
 
         row = [
@@ -185,6 +186,7 @@ class MqttOutput(OutputSink):
         if self.use_length:
             row.append(length_m)
         row.append(img)
+        row.append(self.device_id)
         return row
 
     def _row_to_csv_line(self, row) -> str:
@@ -195,12 +197,14 @@ class MqttOutput(OutputSink):
 
     def _header(self) -> list[str]:
         if self.use_reference and self.use_length:
-            return CsvWriter.HEADER_WITH_REF_AND_LENGTH
-        if self.use_reference:
-            return CsvWriter.HEADER_WITH_REF
-        if self.use_length:
-            return CsvWriter.HEADER_WITH_LENGTH
-        return CsvWriter.HEADER
+            base = CsvWriter.HEADER_WITH_REF_AND_LENGTH
+        elif self.use_reference:
+            base = CsvWriter.HEADER_WITH_REF
+        elif self.use_length:
+            base = CsvWriter.HEADER_WITH_LENGTH
+        else:
+            base = CsvWriter.HEADER
+        return [*base, "device_id"]
 
     def open(self, session_dir: Path) -> None:
         try:
@@ -210,7 +214,7 @@ class MqttOutput(OutputSink):
                 from facade_sdk import Client as DataClient
 
             client_type_val = getattr(DataClient, self.client_type, self.client_type)
-            effective_device_id = f"{self.device_id}_{self.camera_name}"
+            effective_device_id = self.device_id
             self._client = DataClient(
                 broker_ip=self.broker_ip,
                 client_type=client_type_val,
