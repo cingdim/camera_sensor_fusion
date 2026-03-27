@@ -17,7 +17,7 @@
   "publish": true,
   "broker_ip": "192.168.1.76",
   "broker_port": 1883,
-  "device_id": "CameraPi2",
+  "device_id": 2,
   "client_type": "CAMERA",
   "no_detect": false,
   "dry_run": false,
