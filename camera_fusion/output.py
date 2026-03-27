@@ -214,7 +214,7 @@ class MqttOutput(OutputSink):
                 from facade_sdk import Client as DataClient
 
             client_type_val = getattr(DataClient, self.client_type, self.client_type)
-            effective_device_id = self.device_id
+            effective_device_id = f"{self.device_id}_{self.camera_name}"
             self._client = DataClient(
                 broker_ip=self.broker_ip,
                 client_type=client_type_val,

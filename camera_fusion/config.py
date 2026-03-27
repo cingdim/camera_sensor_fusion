@@ -63,7 +63,7 @@ class CameraConfig:
     publish: bool = False
     broker_ip: str = "192.168.1.76"
     broker_port: int = 1883
-    device_id: int = 0
+    device_id: str = "CameraPi"
     client_type: str = "CAMERA"
     expected_marker_count: int = 3
     metrics_enabled: bool = True
@@ -155,11 +155,11 @@ def load_config(path: str | Path) -> CameraConfig:
     raw_device_id = raw.get("device_id")
 
     if env_device_id is not None:
-        cfg.device_id = int(env_device_id)
+        cfg.device_id = str(env_device_id)
     elif raw_device_id is not None:
-        cfg.device_id = int(raw_device_id)
+        cfg.device_id = str(raw_device_id)
     else:
-        cfg.device_id = int(cfg.device_id)
+        cfg.device_id = str(cfg.device_id)
     cfg.client_type = str(raw.get("client_type", cfg.client_type))
     cfg.expected_marker_count = int(raw.get("expected_marker_count", cfg.expected_marker_count))
     cfg.metrics_enabled = bool(raw.get("metrics_enabled", cfg.metrics_enabled))
