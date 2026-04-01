@@ -127,6 +127,7 @@ class RTPStreamSource(FrameSource):
         self.height = height
         self.frame_id = 0
         self.cap: Any = None
+        self._shape_logged = False
 
     def start(self) -> None:
         """Open the RTP stream via GStreamer backend."""
@@ -139,8 +140,9 @@ class RTPStreamSource(FrameSource):
             f"avdec_h264 ! "
             f"video/x-raw,format=I420,width={self.width},height={self.height},pixel-aspect-ratio=1/1 ! "
             f"videoconvert ! "
+            f"videoscale ! "
             f"video/x-raw,format=BGR,width={self.width},height={self.height},pixel-aspect-ratio=1/1 ! "
-            f"appsink drop=true max-buffers=1 sync=false"
+            f"appsink caps=video/x-raw,format=BGR,width={self.width},height={self.height} drop=true max-buffers=1 sync=false"
         )
         
         self.cap = cv2.VideoCapture(gst_pipeline, cv2.CAP_GSTREAMER)
@@ -169,6 +171,10 @@ class RTPStreamSource(FrameSource):
         ok, img = self.cap.read()
         if not ok:
             raise RuntimeError("Failed to read frame from RTP stream")
+
+        if not self._shape_logged:
+            print(f"[RTPStreamSource:{self.port}] frame.shape={img.shape}")
+            self._shape_logged = True
 
         capture_time = time.time()
         
