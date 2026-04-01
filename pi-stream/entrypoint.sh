@@ -24,8 +24,8 @@ exec ffmpeg \
   -framerate "${FPS}" \
   -i "${VIDEO_DEVICE}" \
   -an \
+  -vf "scale=${WIDTH}:${HEIGHT},format=yuv420p" \
   -c:v libx264 \
-  -pix_fmt yuv420p \
   -preset ultrafast \
   -tune zerolatency \
   -payload_type 96 \
