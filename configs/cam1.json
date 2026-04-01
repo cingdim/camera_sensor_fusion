@@ -22,8 +22,8 @@
   "no_detect": false,
   "dry_run": false,
   "max_frames": null,
-  "save_annotated": false,
-  "save_frames": false,
+  "save_annotated": true,
+  "save_frames": true,
   "source": {
     "type": "rtp_h264_udp",
     "port": 5000
