@@ -133,11 +133,11 @@ class RTPStreamSource(FrameSource):
         # Build GStreamer pipeline
         gst_pipeline = (
             f"udpsrc port={self.port} "
-            f'caps="application/x-rtp,media=video,encoding-name=H264,payload=96,clock-rate=90000,packetization-mode=1" ! '
+            f'caps="application/x-rtp,media=video,encoding-name=H264,payload=96,clock-rate=90000,packetization-mode=1,width={self.width},height={self.height},framerate={self.fps}/1" ! '
             f"rtph264depay ! "
             f"h264parse ! "
             f"avdec_h264 ! "
-            f"videoscale ! "
+            f"video/x-raw,format=I420,width={self.width},height={self.height},pixel-aspect-ratio=1/1 ! "
             f"videoconvert ! "
             f"video/x-raw,format=BGR,width={self.width},height={self.height},pixel-aspect-ratio=1/1 ! "
             f"appsink drop=true max-buffers=1 sync=false"
