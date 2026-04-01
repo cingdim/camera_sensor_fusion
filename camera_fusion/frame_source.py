@@ -156,21 +156,18 @@ class RTPStreamSource(FrameSource):
         
         self.frame_id = 0
 
-    def read(self) -> tuple[np.ndarray, int, int]:
+    def read(self) -> tuple[np.ndarray, int, int] | None:
         """Read next frame from RTP stream.
         
-        Raises:
-            RuntimeError: If frame read fails
-            
         Returns:
-            (frame_bgr, timestamp_ns, frame_id)
+            (frame_bgr, timestamp_ns, frame_id) tuple or None if no frame available.
         """
         if self.cap is None:
-            raise RuntimeError("RTP stream not started")
+            return None
         
         ok, img = self.cap.read()
         if not ok:
-            raise RuntimeError("Failed to read frame from RTP stream")
+            return None
 
         if not self._shape_logged:
             print(f"[RTPStreamSource:{self.port}] frame.shape={img.shape}")
