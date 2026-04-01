@@ -10,16 +10,16 @@
 - `tests/test_lightglue_config.py` (NEW) - Configuration tests
 
 ### Scripts
-- `scripts/validate_lightglue_on_session.py` (NEW) - Validation tool for saved sessions
-- `scripts/create_marker_templates.py` (NEW) - Template generation tool
+- `lightglue/scripts/validate_lightglue_on_session.py` (NEW) - Validation tool for saved sessions
+- `lightglue/scripts/create_marker_templates.py` (NEW) - Template generation tool
 
 ### Documentation
-- `LIGHTGLUE_IMPLEMENTATION.md` - Complete implementation guide
-- `LIGHTGLUE_QUICKSTART.md` - Quick start guide
-- `LIGHTGLUE_SAFETY.md` - Safety features documentation
-- `LIGHTGLUE_FIX_SUMMARY.md` - Summary of bug fixes
-- `LIGHTGLUE_CODE_CHANGES.md` - Code change details
-- `LIGHTGLUE_CONTRACT_FIX.md` - LightGlue API contract explanation
+- `lightglue/docs/LIGHTGLUE_IMPLEMENTATION.md` - Complete implementation guide
+- `lightglue/docs/LIGHTGLUE_QUICKSTART.md` - Quick start guide
+- `lightglue/docs/LIGHTGLUE_SAFETY.md` - Safety features documentation
+- `lightglue/docs/LIGHTGLUE_FIX_SUMMARY.md` - Summary of bug fixes
+- `lightglue/docs/LIGHTGLUE_CODE_CHANGES.md` - Code change details
+- `lightglue/docs/LIGHTGLUE_CONTRACT_FIX.md` - LightGlue API contract explanation
 - `VERIFICATION_CHECKLIST.md` - Testing checklist
 - `SAFETY_IMPLEMENTATION_SUMMARY.md` - Safety features summary
 - `IMPLEMENTATION_COMPLETE.md` - Completion summary

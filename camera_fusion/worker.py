@@ -156,9 +156,9 @@ class CameraWorker:
             und = NoUndistort()
             loc = NoLocalize()
         else:
-            und = SimpleUndistort(self.config.calibration_path)
             K, dist, _ = load_calib(self.config.calibration_path)
             loc = PnPLocalize(K, dist, self.config.marker_length_m)
+            und = SimpleUndistort(self.config.calibration_path) if self.config.apply_undistort else NoUndistort()
 
         detector_state = build_detector(self.config.aruco_dict)
         
@@ -203,10 +203,11 @@ class CameraWorker:
                 frame_img, timestamp_ns, frame_id = frame_data
                 capture_time = timestamp_ns / 1_000_000_000.0
                 ts_iso = time.strftime("%Y-%m-%dT%H:%M:%S")
-                f = Frame(frame_id, ts_iso, frame_img, capture_time=capture_time)
+                raw_frame = Frame(frame_id, ts_iso, frame_img, capture_time=capture_time)
 
-                f = pre.apply(f)
-                f = und.apply(f)
+                f = pre.apply(raw_frame)
+                if self.config.apply_undistort:
+                    f = und.apply(f)
 
                 dets = []
                 poses = []
@@ -256,7 +257,7 @@ class CameraWorker:
                     aruco_detect_ms = (time.perf_counter() - aruco_start) * 1000.0
 
                 if dets and self.config.save_annotated:
-                    draw = f.image.copy()
+                    draw = raw_frame.image.copy() if not self.config.apply_undistort else f.image.copy()
                     h, w = draw.shape[:2]
                     txt = f"#{f.idx} {f.ts_iso} {w}x{h}"
                     cv2.putText(
@@ -339,7 +340,7 @@ class CameraWorker:
                         cv2.imwrite(str(debug_file), draw)
 
                 if self.config.save_frames:
-                    storage.save_frame(f)
+                    storage.save_frame(raw_frame)
 
                 # Compute reference-relative poses if reference marker is present
                 ref_visible = False
@@ -398,7 +399,7 @@ class CameraWorker:
                             ref_rvec=ref_rvec,
                             ref_tvec=ref_tvec,
                             length_m=length_m,
-                            capture_time=f.capture_time,
+                            capture_time=raw_frame.capture_time,
                         )
 
                 self.logger.info(

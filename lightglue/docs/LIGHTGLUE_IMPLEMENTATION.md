@@ -8,8 +8,8 @@ Successfully implemented a LightGlue-based fallback system for ArUco marker dete
 ### New Files
 1. **camera_fusion/fallback/__init__.py** - Module initialization
 2. **camera_fusion/fallback/lightglue_fallback.py** - Main LightGlueFallback class (571 lines)
-3. **scripts/test_lightglue_fallback.py** - Test script for fallback functionality
-4. **scripts/create_marker_templates.py** - Helper to generate marker templates
+3. **lightglue/scripts/test_lightglue_fallback.py** - Test script for fallback functionality
+4. **lightglue/scripts/create_marker_templates.py** - Helper to generate marker templates
 5. **configs/cam_lightglue_example.json** - Example configuration with LightGlue enabled
 6. **requirements-jetson.txt** - Jetson-specific dependency instructions
 
@@ -84,15 +84,15 @@ Successfully implemented a LightGlue-based fallback system for ArUco marker dete
 - Precomputed at init: keypoints, descriptors, corners
 - Stored as: (image_gray, keypoints, descriptors, template_corners)
 
-**Creation Script (scripts/create_marker_templates.py):**
+**Creation Script (lightglue/scripts/create_marker_templates.py):**
 ```bash
-python scripts/create_marker_templates.py --marker-ids 0 1 2 3 --dict 4x4_50 --size 400
+python lightglue/scripts/create_marker_templates.py --marker-ids 0 1 2 3 --dict 4x4_50 --size 400
 ```
 - Generates ArUco marker templates using cv2.aruco.generateImageMarker
 - Supports all standard ArUco dictionaries
 - Configurable size and border bits
 
-### 5. Testing (scripts/test_lightglue_fallback.py)
+### 5. Testing (lightglue/scripts/test_lightglue_fallback.py)
 
 **Features:**
 - Loads a saved frame from disk
@@ -104,7 +104,7 @@ python scripts/create_marker_templates.py --marker-ids 0 1 2 3 --dict 4x4_50 --s
 
 **Usage:**
 ```bash
-python scripts/test_lightglue_fallback.py \
+python lightglue/scripts/test_lightglue_fallback.py \
   --frame data/sessions/cam1_session_*/frames/frame_000001.png \
   --templates templates/markers \
   --marker-ids 0 1 2 3 \
@@ -165,7 +165,7 @@ Added comprehensive section covering:
 
 ## Testing Strategy
 
-1. **Unit testing:** scripts/test_lightglue_fallback.py
+1. **Unit testing:** lightglue/scripts/test_lightglue_fallback.py
    - Loads real frame
    - Simulates missing detections
    - Validates recovery
@@ -191,7 +191,7 @@ Added comprehensive section covering:
 2. **Generate templates:**
    ```bash
    mkdir -p templates/markers
-   python scripts/create_marker_templates.py --marker-ids 0 1 2 3 --dict 4x4_50
+   python lightglue/scripts/create_marker_templates.py --marker-ids 0 1 2 3 --dict 4x4_50
    ```
 
 3. **Test fallback:**
@@ -241,7 +241,7 @@ Added comprehensive section covering:
 ✅ Precomputed template features at init  
 ✅ Output corners as (4, 2) float32 in pixel coordinates  
 ✅ Updated detected_dict includes recovered markers  
-✅ Test script: scripts/test_lightglue_fallback.py  
+✅ Test script: lightglue/scripts/test_lightglue_fallback.py  
 ✅ Dependency handling in requirements.txt and requirements-jetson.txt  
 
 ## Status

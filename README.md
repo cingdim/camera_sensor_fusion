@@ -301,7 +301,7 @@ Add a `lightglue` section to your config:
 
 2. **Generate marker templates:**
    ```bash
-   python scripts/create_marker_templates.py \
+   python lightglue/scripts/create_marker_templates.py \
      --marker-ids 0 1 2 3 \
      --dict 4x4_50 \
      --output-dir templates/markers \
@@ -329,7 +329,7 @@ Marker labels show source: `ID (LG:track)` or `ID (LG:reacquire)`
 Test the fallback on a saved frame:
 
 ```bash
-python scripts/test_lightglue_fallback.py \
+python lightglue/scripts/test_lightglue_fallback.py \
   --frame data/sessions/cam1_session_20260204_120000/frames/frame_000010.png \
   --templates templates/markers \
   --marker-ids 0 1 2 3 \

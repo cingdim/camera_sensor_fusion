@@ -60,6 +60,7 @@ class CameraConfig:
     max_frames: Optional[int] = None
     save_annotated: bool = True
     save_frames: bool = True
+    apply_undistort: bool = True
     publish: bool = False
     broker_ip: str = "192.168.1.76"
     broker_port: int = 1883
@@ -148,6 +149,7 @@ def load_config(path: str | Path) -> CameraConfig:
         cfg.max_frames = int(cfg.max_frames)
     cfg.save_annotated = bool(raw.get("save_annotated", cfg.save_annotated))
     cfg.save_frames = bool(raw.get("save_frames", cfg.save_frames))
+    cfg.apply_undistort = bool(raw.get("apply_undistort", cfg.apply_undistort))
     cfg.publish = bool(raw.get("publish", cfg.publish))
     cfg.broker_ip = str(raw.get("broker_ip", cfg.broker_ip))
     cfg.broker_port = int(raw.get("broker_port", cfg.broker_port))

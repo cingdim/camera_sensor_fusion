@@ -193,23 +193,23 @@ Use the validation script to test on saved sessions:
 
 ```bash
 # Basic validation (with fallback)
-python scripts/validate_lightglue_on_session.py \
+python lightglue/scripts/validate_lightglue_on_session.py \
   --session data/sessions/cam1_session_20260204_120000 \
   --templates templates/markers
 
 # Baseline comparison (no fallback)
-python scripts/validate_lightglue_on_session.py \
+python lightglue/scripts/validate_lightglue_on_session.py \
   --session data/sessions/cam1_session_20260204_120000 \
   --no-fallback
 
 # With debug overlays
-python scripts/validate_lightglue_on_session.py \
+python lightglue/scripts/validate_lightglue_on_session.py \
   --session data/sessions/cam1_session_20260204_120000 \
   --templates templates/markers \
   --output debug_overlays/
 
 # Test without ID verification
-python scripts/validate_lightglue_on_session.py \
+python lightglue/scripts/validate_lightglue_on_session.py \
   --session data/sessions/cam1_session_20260204_120000 \
   --templates templates/markers \
   --no-verify-id

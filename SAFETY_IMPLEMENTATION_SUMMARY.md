@@ -69,7 +69,7 @@ Successfully added comprehensive safety features to the LightGlue fallback syste
 
 ### 6. Validation Script ✅
 
-**New file**: `scripts/validate_lightglue_on_session.py`
+**New file**: `lightglue/scripts/validate_lightglue_on_session.py`
 - Loads frames from saved session directory
 - Runs ArUco + LightGlue fallback on each frame
 - Generates per-marker detection statistics
@@ -83,7 +83,7 @@ Successfully added comprehensive safety features to the LightGlue fallback syste
 - Per-marker breakdown (ArUco/Track/Reacquire)
 - Detection rate calculation
 
-**Location**: [scripts/validate_lightglue_on_session.py](scripts/validate_lightglue_on_session.py)
+**Location**: [lightglue/scripts/validate_lightglue_on_session.py](lightglue/scripts/validate_lightglue_on_session.py)
 
 ## Configuration Changes
 
@@ -129,12 +129,12 @@ class LightGlueConfig:
 
 ## Files Created
 
-1. **scripts/validate_lightglue_on_session.py** (293 lines)
+1. **lightglue/scripts/validate_lightglue_on_session.py** (293 lines)
    - Complete validation tool for saved sessions
    - Statistics generation and reporting
    - Debug overlay creation
 
-2. **LIGHTGLUE_SAFETY.md** (404 lines)
+2. **lightglue/docs/LIGHTGLUE_SAFETY.md** (404 lines)
    - Comprehensive safety features documentation
    - Configuration reference
    - Tuning guidance
@@ -178,7 +178,7 @@ Missing Marker Detection Flow with Safety Features:
 
 ```bash
 # Run validation on a session
-python scripts/validate_lightglue_on_session.py \
+python lightglue/scripts/validate_lightglue_on_session.py \
   --session data/sessions/cam1_session_20260204_120000 \
   --templates templates/markers
 ```
@@ -246,7 +246,7 @@ All safety features have been implemented and are ready for testing:
 ## Documentation
 
 Created comprehensive documentation:
-- **LIGHTGLUE_SAFETY.md**: Complete guide to safety features
+- **lightglue/docs/LIGHTGLUE_SAFETY.md**: Complete guide to safety features
 - **validate_lightglue_on_session.py**: Docstrings and help text
 - **Example config**: Shows all parameters with sensible defaults
 

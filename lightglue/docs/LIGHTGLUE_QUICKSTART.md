@@ -27,7 +27,7 @@ pip install lightglue
 mkdir -p templates/markers
 
 # Generate templates for your markers
-python scripts/create_marker_templates.py \
+python lightglue/scripts/create_marker_templates.py \
   --marker-ids 0 1 2 3 \
   --dict 4x4_50 \
   --output-dir templates/markers \
@@ -84,7 +84,7 @@ Test on a saved frame before production use:
 python -m camera_fusion.run --config configs/cam1.json --max-frames 20
 
 # Test the fallback on one frame
-python scripts/test_lightglue_fallback.py \
+python lightglue/scripts/test_lightglue_fallback.py \
   --frame data/sessions/cam1_session_*/frames/frame_000010.png \
   --templates templates/markers \
   --marker-ids 0 1 2 3 \

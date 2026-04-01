@@ -28,12 +28,12 @@ Successfully implemented a comprehensive LightGlue-based fallback system for ArU
 
 ### 2. Tools & Scripts
 
-✅ **Template Generator** (`scripts/create_marker_templates.py`)
+✅ **Template Generator** (`lightglue/scripts/create_marker_templates.py`)
 - Creates ArUco marker templates from any dictionary
 - Configurable size and border
 - Batch generation for multiple IDs
 
-✅ **Test Script** (`scripts/test_lightglue_fallback.py`)
+✅ **Test Script** (`lightglue/scripts/test_lightglue_fallback.py`)
 - Validates fallback on saved frames
 - Simulates missing detections
 - Visual verification with color coding
@@ -53,13 +53,13 @@ Successfully implemented a comprehensive LightGlue-based fallback system for ArU
 - Performance benchmarks
 - Troubleshooting guide
 
-✅ **Quick Start Guide** (`LIGHTGLUE_QUICKSTART.md`)
+✅ **Quick Start Guide** (`lightglue/docs/LIGHTGLUE_QUICKSTART.md`)
 - 3-step setup process
 - Visual detection guide
 - Parameter tuning guide
 - Use case recommendations
 
-✅ **Implementation Details** (`LIGHTGLUE_IMPLEMENTATION.md`)
+✅ **Implementation Details** (`lightglue/docs/LIGHTGLUE_IMPLEMENTATION.md`)
 - Complete technical overview
 - Design patterns
 - Requirements compliance checklist
@@ -101,8 +101,8 @@ camera_sensor_fusion/
 ├── requirements.txt                 [MODIFIED]
 ├── requirements-jetson.txt          [NEW]
 ├── README.md                        [MODIFIED] +100 lines
-├── LIGHTGLUE_IMPLEMENTATION.md      [NEW] 310 lines
-└── LIGHTGLUE_QUICKSTART.md         [NEW] 283 lines
+├── lightglue/docs/LIGHTGLUE_IMPLEMENTATION.md      [NEW] 310 lines
+└── lightglue/docs/LIGHTGLUE_QUICKSTART.md         [NEW] 283 lines
 ```
 
 ## How It Works
@@ -179,7 +179,7 @@ Expected: 8 tests pass (config loading, imports, graceful degradation)
 
 ### 3. Generate Templates
 ```bash
-python scripts/create_marker_templates.py --marker-ids 0 1 2 3 --dict 4x4_50
+python lightglue/scripts/create_marker_templates.py --marker-ids 0 1 2 3 --dict 4x4_50
 ```
 
 ### 4. Test on Real Data
@@ -188,7 +188,7 @@ python scripts/create_marker_templates.py --marker-ids 0 1 2 3 --dict 4x4_50
 python -m camera_fusion.run --config configs/cam1.json --max-frames 20
 
 # Test fallback
-python scripts/test_lightglue_fallback.py \
+python lightglue/scripts/test_lightglue_fallback.py \
   --frame data/sessions/cam1_session_*/frames/frame_000010.png \
   --templates templates/markers \
   --marker-ids 0 1 2 3

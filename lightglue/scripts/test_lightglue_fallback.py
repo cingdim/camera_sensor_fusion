@@ -18,8 +18,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add repo root to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from camera_fusion.config import LightGlueConfig
 from camera_fusion.fallback import LightGlueFallback

@@ -17,8 +17,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add repo root to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from camera_fusion.config import LightGlueConfig
 from camera_fusion.detect import build_detector, detect_markers

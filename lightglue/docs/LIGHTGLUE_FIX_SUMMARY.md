@@ -144,5 +144,5 @@ All critical sections reviewed and verified:
 
 Ready for testing with actual LightGlue library:
 1. Install: `pip install lightglue`
-2. Run: `python scripts/validate_lightglue_on_session.py --session <path>`
+2. Run: `python lightglue/scripts/validate_lightglue_on_session.py --session <path>`
 3. Verify: 6× faster recovery, same accuracy

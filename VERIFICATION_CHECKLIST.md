@@ -148,9 +148,9 @@ Return: numpy corners
 
 ## Documentation Created
 
-- [x] LIGHTGLUE_FIX_SUMMARY.md - User-facing summary
-- [x] LIGHTGLUE_CODE_CHANGES.md - Code diff documentation
-- [x] LIGHTGLUE_CONTRACT_FIX.md - Detailed technical explanation
+- [x] lightglue/docs/LIGHTGLUE_FIX_SUMMARY.md - User-facing summary
+- [x] lightglue/docs/LIGHTGLUE_CODE_CHANGES.md - Code diff documentation
+- [x] lightglue/docs/LIGHTGLUE_CONTRACT_FIX.md - Detailed technical explanation
 - [x] This checklist
 
 ## Syntax Verification

@@ -24,6 +24,7 @@
   "max_frames": null,
   "save_annotated": true,
   "save_frames": true,
+  "apply_undistort": false,
   "source": {
     "type": "rtp_h264_udp",
     "port": 5000
