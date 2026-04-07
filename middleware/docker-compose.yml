@@ -15,6 +15,7 @@ services:
     volumes:
       - ../configs:/app/configs
       - ../calib:/app/calib
+      - ../templates:/app/templates:ro
       - ../data:/app/data
       - ../logs:/app/logs
     command: python3 -m camera_fusion.launch configs/cam1.json configs/cam2.json

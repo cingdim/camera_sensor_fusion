@@ -284,6 +284,13 @@ Add a `lightglue` section to your config:
 | `corner_refine` | bool | `true` | Refine corners with cv2.cornerSubPix |
 | `match_threshold` | float | `0.2` | LightGlue matching threshold |
 
+For a two-camera setup, keep the template images in separate folders:
+
+- `templates/markers/cam1/id_<MARKER_ID>.png`
+- `templates/markers/cam2/id_<MARKER_ID>.png`
+
+Each folder should contain the marker template PNGs for that camera, not a single combined scene image.
+
 **Setup:**
 
 1. **Install dependencies:**
@@ -304,16 +311,37 @@ Add a `lightglue` section to your config:
    python lightglue/scripts/create_marker_templates.py \
      --marker-ids 0 1 2 3 \
      --dict 4x4_50 \
-     --output-dir templates/markers \
+     --output-dir templates/markers/cam1 \
+     --size 400
+   python lightglue/scripts/create_marker_templates.py \
+     --marker-ids 0 1 2 3 \
+     --dict 4x4_50 \
+     --output-dir templates/markers/cam2 \
      --size 400
    ```
    
-   This creates PNG templates: `templates/markers/id_0.png`, `id_1.png`, etc.
+   This creates PNG templates for each camera, such as `templates/markers/cam1/id_0.png` and `templates/markers/cam2/id_0.png`.
 
-3. **Run with fallback enabled:**
+   If you already have camera-specific template images, place them in the matching camera folder and keep the `id_<MARKER_ID>.png` naming convention.
+
+3. **Update the camera configs:**
+   - `configs/cam1.json` should point `lightglue.template_dir` at `templates/markers/cam1`
+   - `configs/cam2.json` should point `lightglue.template_dir` at `templates/markers/cam2`
+
+4. **Run the middleware stack:**
+   ```bash
+   cd middleware
+   docker compose up --build
+   ```
+
+  The middleware compose file now mounts `../templates` into the container so template changes are picked up on the next run, and the middleware image installs `torch` + `lightglue` during build.
+
+5. **Run with fallback enabled:**
    ```bash
    python -m camera_fusion.run --config configs/cam_lightglue_example.json
    ```
+
+   The pi-stream container does not use LightGlue directly; it only needs to keep streaming the camera feed. The fallback runs in the middleware container that consumes those streams.
 
 **Visualization:**
 

@@ -16,7 +16,7 @@
   "lightglue": {
     "enabled": true,
     "device": "cpu",
-    "template_dir": "templates/markers",
+    "template_dir": "templates/markers/cam1",
     "min_inliers": 4,
     "max_age_frames": 5,
     "roi_expand_px": 50,

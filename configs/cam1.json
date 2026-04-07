@@ -12,7 +12,7 @@
     "2": 0.0485,
     "3": 0.05
   },
-  "target_ids": [0, 1, 2, 3],
+  "target_ids": [1, 2],
   "reference_id": 0,
   "publish": true,
   "broker_ip": "192.168.1.76",
@@ -25,6 +25,11 @@
   "save_annotated": true,
   "save_frames": true,
   "apply_undistort": false,
+  "lightglue": {
+    "enabled": true,
+    "device": "cpu",
+    "template_dir": "templates/markers/cam1"
+  },
   "source": {
     "type": "rtp_h264_udp",
     "port": 5000

@@ -101,6 +101,19 @@ def test_load_config_without_lightglue():
         Path(temp_path).unlink()
 
 
+def test_camera_configs_use_separate_template_dirs():
+    """Test the checked-in camera configs point at camera-specific templates."""
+    cam1_cfg = load_config("configs/cam1.json")
+    cam2_cfg = load_config("configs/cam2.json")
+
+    assert cam1_cfg.lightglue is not None
+    assert cam2_cfg.lightglue is not None
+    assert cam1_cfg.lightglue.enabled is True
+    assert cam2_cfg.lightglue.enabled is True
+    assert cam1_cfg.lightglue.template_dir == "templates/markers/cam1"
+    assert cam2_cfg.lightglue.template_dir == "templates/markers/cam2"
+
+
 def test_lightglue_fallback_import():
     """Test that LightGlueFallback can be imported."""
     try:
@@ -157,6 +170,7 @@ def main():
         test_camera_config_with_lightglue,
         test_load_config_with_lightglue,
         test_load_config_without_lightglue,
+        test_camera_configs_use_separate_template_dirs,
         test_lightglue_fallback_import,
         test_lightglue_fallback_graceful_init,
         test_lightglue_fallback_disabled,
