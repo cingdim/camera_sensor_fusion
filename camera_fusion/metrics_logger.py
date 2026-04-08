@@ -15,6 +15,10 @@ class CameraMetricsLogger:
         "frame_id",
         "timestamp",
         "camera_name",
+        "expected_marker_count",
+        "required_target_ids",
+        "detected_ids",
+        "missing_target_ids",
         "condition_label",
         "system_mode",
         "aruco_success",
@@ -99,6 +103,14 @@ class CameraMetricsLogger:
 
         row_out["raw_match_count"] = int(row_out.get("raw_match_count", 0))
         row_out["ransac_inlier_count"] = int(row_out.get("ransac_inlier_count", 0))
+        row_out["expected_marker_count"] = int(row_out.get("expected_marker_count", 0))
+
+        for key in ("required_target_ids", "detected_ids", "missing_target_ids"):
+            value = row_out.get(key, [])
+            if isinstance(value, str):
+                row_out[key] = value
+            else:
+                row_out[key] = json.dumps(value)
 
         for key in (
             "inlier_ratio",
@@ -164,6 +176,7 @@ class CameraMetricsLogger:
         return {
             "total_frames": total,
             "aruco_success_count": self.aruco_success_count,
+            "aruco_full_success_count": self.aruco_success_count,
             "fallback_triggered_count": self.fallback_triggered_count,
             "fallback_success_count": self.fallback_success_count,
             "total_failure_count": self.total_failure_count,

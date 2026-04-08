@@ -221,6 +221,8 @@ class CameraWorker:
                 debug_info_list = []
                 aruco_detect_ms = 0.0
                 aruco_detected_ids = set()
+                required_ids = set(self.target_ids) if self.target_ids is not None else set()
+                missing_target_ids = set()
                 fallback_stats = {
                     "fallback_triggered": False,
                     "fallback_success": False,
@@ -245,13 +247,14 @@ class CameraWorker:
                     
                     # Step 2: Build detected_dict for fallback
                     detected_dict = {d.marker_id: d.corners for d in dets}
+                    missing_target_ids = required_ids - aruco_detected_ids
                     
                     # Step 3: Attempt LightGlue recovery for missing markers
-                    if lightglue_fallback is not None and self.target_ids is not None:
+                    if lightglue_fallback is not None and len(missing_target_ids) > 0:
                         detected_dict, debug_info_list = lightglue_fallback.recover_missing(
                             f.image,
                             detected_dict,
-                            self.target_ids
+                            required_ids
                         )
                         fallback_stats = lightglue_fallback.get_last_frame_stats()
                         
@@ -435,20 +438,17 @@ class CameraWorker:
 
                 total_frame_ms = (time.perf_counter() - frame_loop_start) * 1000.0
                 if metrics_logger is not None:
-                    target_ids = self.target_ids if self.target_ids is not None else {d.marker_id for d in dets}
-                    final_detected_target_ids = {d.marker_id for d in dets if d.marker_id in target_ids}
+                    final_detected_target_ids = {d.marker_id for d in dets if d.marker_id in required_ids}
+                    missing_target_ids_final = required_ids - final_detected_target_ids
 
-                    aruco_success = False
-                    if target_ids:
-                        aruco_success = target_ids.issubset(aruco_detected_ids)
-
-                    fallback_triggered = bool(fallback_stats.get("fallback_triggered", False))
+                    aruco_success = len(missing_target_ids) == 0
+                    fallback_triggered = len(missing_target_ids) > 0
                     fallback_success = bool(fallback_stats.get("fallback_success", False))
 
                     detection_source = "none"
                     if fallback_success:
                         detection_source = "lightglue_assisted"
-                    elif len(final_detected_target_ids) > 0:
+                    elif aruco_success:
                         detection_source = "aruco"
 
                     pose_recovered = any(
@@ -459,13 +459,11 @@ class CameraWorker:
                     failure_reason = fallback_stats.get("failure_reason")
                     if aruco_success:
                         final_status = "aruco_success"
-                    elif not fallback_triggered:
-                        final_status = "aruco_fail_no_fallback"
                     elif fallback_success:
                         final_status = "fallback_success"
                     elif failure_reason == "insufficient_inliers":
                         final_status = "fallback_triggered_insufficient_inliers"
-                    elif failure_reason == "no_match":
+                    elif fallback_triggered:
                         final_status = "fallback_triggered_no_match"
                     else:
                         final_status = "total_failure"
@@ -475,6 +473,10 @@ class CameraWorker:
                             "frame_id": f.idx,
                             "timestamp": f.ts_iso,
                             "camera_name": self.config.camera_name,
+                            "expected_marker_count": len(required_ids),
+                            "required_target_ids": sorted(list(required_ids)),
+                            "detected_ids": sorted(list(final_detected_target_ids)),
+                            "missing_target_ids": sorted(list(missing_target_ids_final)),
                             "condition_label": condition_label,
                             "system_mode": system_mode,
                             "aruco_success": aruco_success,
