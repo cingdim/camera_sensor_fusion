@@ -26,10 +26,17 @@
   "save_frames": true,
   "apply_undistort": false,
   "lightglue": {
-    "enabled": true,
-    "device": "cpu",
-    "template_dir": "templates/markers/cam2"
-  },
+  "enabled": true,
+  "device": "cpu",
+  "template_dir": "templates/markers/cam2",
+  "debug_save": true,
+  "min_inliers": 4,
+  "match_threshold": 0.2,
+  "max_age_frames": 5,
+  "reacquire_interval_frames": 5,
+  "max_fallback_markers_per_frame": 2,
+  "prefer_roi_matching": true
+},
   "source": {
     "type": "rtp_h264_udp",
     "port": 5001
