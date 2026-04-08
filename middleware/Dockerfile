@@ -29,7 +29,7 @@ RUN python3 -m pip install --break-system-packages --upgrade pip \
     && grep -v opencv-python requirements.txt > req.txt \
     && python3 -m pip install --break-system-packages --no-cache-dir -r req.txt \
     && python3 -m pip install --break-system-packages --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu \
-    && python3 -m pip install --break-system-packages --no-cache-dir lightglue
+    && python3 -m pip install --break-system-packages --no-cache-dir git+https://github.com/cvg/LightGlue.git
 
 COPY . /app
 
