@@ -3,67 +3,42 @@ from __future__ import annotations
 import csv
 import json
 from collections import defaultdict
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
-
-
-@dataclass
-class _OnlineStats:
-    count: int = 0
-    mean: float = 0.0
-    m2: float = 0.0
-
-    def add(self, value: float) -> None:
-        self.count += 1
-        delta = value - self.mean
-        self.mean += delta / self.count
-        delta2 = value - self.mean
-        self.m2 += delta * delta2
-
-    def avg(self) -> float:
-        return self.mean if self.count > 0 else 0.0
-
-    def std(self) -> float:
-        if self.count <= 0:
-            return 0.0
-        variance = self.m2 / self.count
-        return variance ** 0.5
+from statistics import median, pstdev
+from typing import Any
 
 
 class CameraMetricsLogger:
-    """Per-camera metrics logger for ArUco baseline measurements."""
+    """Structured per-frame and per-session evaluation logging for hybrid detection."""
 
     FIELDNAMES = [
+        "frame_id",
         "timestamp",
-        "frame_index",
-        "detected_marker_count",
-        "expected_marker_count",
-        "success_bool",
-        "partial_ratio",
-        "marker_ids_detected",
-        "pose_available_bool",
-        "tx",
-        "ty",
-        "tz",
-        "rx",
-        "ry",
-        "rz",
+        "camera_name",
+        "condition_label",
+        "system_mode",
+        "aruco_success",
+        "fallback_triggered",
+        "fallback_success",
+        "detection_source",
+        "raw_match_count",
+        "ransac_inlier_count",
+        "inlier_ratio",
+        "pose_recovered",
         "aruco_detect_ms",
-        "total_frame_ms",
+        "superpoint_ms",
+        "lightglue_ms",
+        "ransac_ms",
+        "fallback_total_ms",
+        "pipeline_total_ms",
+        "final_status",
+        "image_path",
+        "annotated_path",
     ]
 
-    def __init__(
-        self,
-        session_dir: str | Path,
-        expected_marker_count: int = 3,
-        flush_every_n_frames: int = 30,
-        primary_marker_strategy: str = "min_id",
-    ):
+    def __init__(self, session_dir: str | Path, flush_every_n_frames: int = 30):
         self.session_dir = Path(session_dir)
-        self.expected_marker_count = max(1, int(expected_marker_count))
         self.flush_every_n_frames = max(1, int(flush_every_n_frames))
-        self.primary_marker_strategy = primary_marker_strategy
 
         self.csv_path = self.session_dir / "metrics_frames.csv"
         self.summary_path = self.session_dir / "metrics_summary.json"
@@ -76,119 +51,96 @@ class CameraMetricsLogger:
         self._finalized = False
 
         self.total_frames = 0
-        self.frames_with_any_marker = 0
-        self.frames_success_all3 = 0
+        self.aruco_success_count = 0
+        self.fallback_triggered_count = 0
+        self.fallback_success_count = 0
+        self.total_failure_count = 0
 
-        self.partial_ratio_stats = _OnlineStats()
-        self.aruco_detect_ms_stats = _OnlineStats()
-        self.total_frame_ms_stats = _OnlineStats()
+        self._pipeline_total_ms_values: list[float] = []
+        self._fallback_total_ms_values: list[float] = []
+        self._superpoint_ms_values: list[float] = []
+        self._lightglue_ms_values: list[float] = []
+        self._ransac_ms_values: list[float] = []
+        self._inlier_ratio_values: list[float] = []
 
-        self.tx_stats = _OnlineStats()
-        self.ty_stats = _OnlineStats()
-        self.tz_stats = _OnlineStats()
-        self.rx_stats = _OnlineStats()
-        self.ry_stats = _OnlineStats()
-        self.rz_stats = _OnlineStats()
-
-        self.counts_by_marker_id: dict[int, int] = defaultdict(int)
-
-    def _select_primary_marker_id(self, marker_ids: list[int]) -> Optional[int]:
-        if not marker_ids:
-            return None
-        if self.primary_marker_strategy == "min_id":
-            return min(marker_ids)
-        return min(marker_ids)
+        self.counts_by_final_status: dict[str, int] = defaultdict(int)
+        self.counts_by_detection_source: dict[str, int] = defaultdict(int)
 
     @staticmethod
-    def _vec3(value: Any) -> Optional[tuple[float, float, float]]:
-        if value is None:
-            return None
-        try:
-            flat = value.reshape(-1)
-            if flat.shape[0] < 3:
-                return None
-            return float(flat[0]), float(flat[1]), float(flat[2])
-        except Exception:
-            try:
-                vals = list(value)
-                if len(vals) < 3:
-                    return None
-                return float(vals[0]), float(vals[1]), float(vals[2])
-            except Exception:
-                return None
+    def _safe_mean(values: list[float]) -> float:
+        if not values:
+            return 0.0
+        return sum(values) / float(len(values))
 
-    def log_frame(
-        self,
-        *,
-        timestamp: str,
-        frame_index: int,
-        detected_marker_ids: list[int],
-        pose_map: dict[int, Any],
-        aruco_detect_ms: float,
-        total_frame_ms: float,
-    ) -> None:
-        marker_ids = sorted(int(mid) for mid in detected_marker_ids)
-        detected_marker_count = len(marker_ids)
-        success_bool = 1 if detected_marker_count == self.expected_marker_count else 0
-        partial_ratio = detected_marker_count / float(self.expected_marker_count)
+    @staticmethod
+    def _safe_median(values: list[float]) -> float:
+        if not values:
+            return 0.0
+        return float(median(values))
 
-        primary_marker_id = self._select_primary_marker_id(marker_ids)
-        pose = pose_map.get(primary_marker_id) if primary_marker_id is not None else None
+    @staticmethod
+    def _safe_std(values: list[float]) -> float:
+        if not values:
+            return 0.0
+        return float(pstdev(values))
 
-        rvec = None
-        tvec = None
-        if pose is not None:
-            rvec = self._vec3(getattr(pose, "rvec", None))
-            tvec = self._vec3(getattr(pose, "tvec", None))
+    @staticmethod
+    def _safe_max(values: list[float]) -> float:
+        if not values:
+            return 0.0
+        return float(max(values))
 
-        pose_available = 1 if (rvec is not None and tvec is not None) else 0
+    def log_frame(self, row: dict[str, Any]) -> None:
+        row_out = dict(row)
 
-        tx, ty, tz = (None, None, None)
-        rx, ry, rz = (None, None, None)
-        if pose_available:
-            tx, ty, tz = tvec
-            rx, ry, rz = rvec
+        # Normalize boolean-ish fields to explicit 0/1 values for easy analysis.
+        for key in ("aruco_success", "fallback_triggered", "fallback_success", "pose_recovered"):
+            row_out[key] = 1 if bool(row_out.get(key, False)) else 0
 
-            self.tx_stats.add(tx)
-            self.ty_stats.add(ty)
-            self.tz_stats.add(tz)
-            self.rx_stats.add(rx)
-            self.ry_stats.add(ry)
-            self.rz_stats.add(rz)
+        row_out["raw_match_count"] = int(row_out.get("raw_match_count", 0))
+        row_out["ransac_inlier_count"] = int(row_out.get("ransac_inlier_count", 0))
+
+        for key in (
+            "inlier_ratio",
+            "aruco_detect_ms",
+            "superpoint_ms",
+            "lightglue_ms",
+            "ransac_ms",
+            "fallback_total_ms",
+            "pipeline_total_ms",
+        ):
+            row_out[key] = float(row_out.get(key, 0.0))
+
+        row_out.setdefault("image_path", "")
+        row_out.setdefault("annotated_path", "")
+        row_out.setdefault("condition_label", "default")
+        row_out.setdefault("system_mode", "aruco_only")
+        row_out.setdefault("detection_source", "none")
+        row_out.setdefault("final_status", "total_failure")
+
+        self._writer.writerow(row_out)
 
         self.total_frames += 1
-        if detected_marker_count > 0:
-            self.frames_with_any_marker += 1
-        if success_bool == 1:
-            self.frames_success_all3 += 1
+        if row_out["aruco_success"] == 1:
+            self.aruco_success_count += 1
+        if row_out["fallback_triggered"] == 1:
+            self.fallback_triggered_count += 1
+        if row_out["fallback_success"] == 1:
+            self.fallback_success_count += 1
+        if row_out["final_status"] == "total_failure":
+            self.total_failure_count += 1
 
-        self.partial_ratio_stats.add(partial_ratio)
-        self.aruco_detect_ms_stats.add(float(aruco_detect_ms))
-        self.total_frame_ms_stats.add(float(total_frame_ms))
+        self._pipeline_total_ms_values.append(row_out["pipeline_total_ms"])
 
-        for marker_id in marker_ids:
-            self.counts_by_marker_id[marker_id] += 1
+        if row_out["fallback_triggered"] == 1:
+            self._fallback_total_ms_values.append(row_out["fallback_total_ms"])
+            self._superpoint_ms_values.append(row_out["superpoint_ms"])
+            self._lightglue_ms_values.append(row_out["lightglue_ms"])
+            self._ransac_ms_values.append(row_out["ransac_ms"])
+            self._inlier_ratio_values.append(row_out["inlier_ratio"])
 
-        self._writer.writerow(
-            {
-                "timestamp": timestamp,
-                "frame_index": int(frame_index),
-                "detected_marker_count": detected_marker_count,
-                "expected_marker_count": self.expected_marker_count,
-                "success_bool": success_bool,
-                "partial_ratio": partial_ratio,
-                "marker_ids_detected": json.dumps(marker_ids),
-                "pose_available_bool": pose_available,
-                "tx": tx,
-                "ty": ty,
-                "tz": tz,
-                "rx": rx,
-                "ry": ry,
-                "rz": rz,
-                "aruco_detect_ms": float(aruco_detect_ms),
-                "total_frame_ms": float(total_frame_ms),
-            }
-        )
+        self.counts_by_final_status[str(row_out["final_status"])] += 1
+        self.counts_by_detection_source[str(row_out["detection_source"])] += 1
 
         self._rows_since_flush += 1
         if self._rows_since_flush >= self.flush_every_n_frames:
@@ -197,29 +149,43 @@ class CameraMetricsLogger:
 
     def _build_summary(self) -> dict[str, Any]:
         total = self.total_frames
-        success_rate_all3 = (self.frames_success_all3 / total) if total > 0 else 0.0
+        aruco_success_rate = (self.aruco_success_count / total) if total > 0 else 0.0
+        hybrid_success_rate = (
+            (self.aruco_success_count + self.fallback_success_count) / total
+            if total > 0
+            else 0.0
+        )
+        recovery_rate = (
+            self.fallback_success_count / self.fallback_triggered_count
+            if self.fallback_triggered_count > 0
+            else 0.0
+        )
 
         return {
             "total_frames": total,
-            "frames_with_any_marker": self.frames_with_any_marker,
-            "frames_success_all3": self.frames_success_all3,
-            "success_rate_all3": success_rate_all3,
-            "avg_partial_ratio": self.partial_ratio_stats.avg(),
-            "std_partial_ratio": self.partial_ratio_stats.std(),
-            "avg_aruco_detect_ms": self.aruco_detect_ms_stats.avg(),
-            "std_aruco_detect_ms": self.aruco_detect_ms_stats.std(),
-            "avg_total_frame_ms": self.total_frame_ms_stats.avg(),
-            "std_total_frame_ms": self.total_frame_ms_stats.std(),
-            "pose_stability": {
-                "std_tx": self.tx_stats.std(),
-                "std_ty": self.ty_stats.std(),
-                "std_tz": self.tz_stats.std(),
-                "std_rx": self.rx_stats.std(),
-                "std_ry": self.ry_stats.std(),
-                "std_rz": self.rz_stats.std(),
+            "aruco_success_count": self.aruco_success_count,
+            "fallback_triggered_count": self.fallback_triggered_count,
+            "fallback_success_count": self.fallback_success_count,
+            "total_failure_count": self.total_failure_count,
+            "aruco_success_rate": aruco_success_rate,
+            "hybrid_success_rate": hybrid_success_rate,
+            "recovery_rate": recovery_rate,
+            "pipeline_latency_ms": {
+                "mean": self._safe_mean(self._pipeline_total_ms_values),
+                "median": self._safe_median(self._pipeline_total_ms_values),
+                "std": self._safe_std(self._pipeline_total_ms_values),
+                "max": self._safe_max(self._pipeline_total_ms_values),
             },
-            "counts_by_marker_id": {
-                str(k): v for k, v in sorted(self.counts_by_marker_id.items(), key=lambda item: item[0])
+            "mean_fallback_latency_ms": self._safe_mean(self._fallback_total_ms_values),
+            "mean_superpoint_ms": self._safe_mean(self._superpoint_ms_values),
+            "mean_lightglue_ms": self._safe_mean(self._lightglue_ms_values),
+            "mean_ransac_ms": self._safe_mean(self._ransac_ms_values),
+            "mean_inlier_ratio": self._safe_mean(self._inlier_ratio_values),
+            "counts_by_final_status": {
+                key: value for key, value in sorted(self.counts_by_final_status.items())
+            },
+            "counts_by_detection_source": {
+                key: value for key, value in sorted(self.counts_by_detection_source.items())
             },
         }
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 import threading
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -138,9 +139,7 @@ class CameraWorker:
         if self.config.metrics_enabled:
             metrics_logger = CameraMetricsLogger(
                 storage.session_dir,
-                expected_marker_count=self.config.expected_marker_count,
                 flush_every_n_frames=self.config.metrics_flush_every_n_frames,
-                primary_marker_strategy=self.config.metrics_primary_marker_strategy,
             )
 
         log_file = str(Path(storage.logs_dir) / "session.log")
@@ -179,6 +178,13 @@ class CameraWorker:
         self.logger.info("session started: %s", session_path)
         self.logger.info("config: %s", self.config.as_dict())
 
+        condition_label = os.getenv("CONDITION_LABEL", "default")
+        system_mode = (
+            "hybrid_aruco_lightglue"
+            if (lightglue_fallback is not None and self.target_ids is not None)
+            else "aruco_only"
+        )
+
         frame_source.start()
         t0 = time.time()
         frames = 0
@@ -214,12 +220,28 @@ class CameraWorker:
                 pose_map = {}
                 debug_info_list = []
                 aruco_detect_ms = 0.0
+                aruco_detected_ids = set()
+                fallback_stats = {
+                    "fallback_triggered": False,
+                    "fallback_success": False,
+                    "raw_match_count": 0,
+                    "ransac_inlier_count": 0,
+                    "inlier_ratio": 0.0,
+                    "superpoint_ms": 0.0,
+                    "lightglue_ms": 0.0,
+                    "ransac_ms": 0.0,
+                    "fallback_total_ms": 0.0,
+                    "failure_reason": None,
+                }
+                image_path = ""
+                annotated_path = ""
                 
                 if not self.config.no_detect and not self.config.dry_run:
                     aruco_start = time.perf_counter()
 
                     # Step 1: Run ArUco detection
                     dets = detect_markers(f.image, detector_state)
+                    aruco_detected_ids = {d.marker_id for d in dets}
                     
                     # Step 2: Build detected_dict for fallback
                     detected_dict = {d.marker_id: d.corners for d in dets}
@@ -231,6 +253,7 @@ class CameraWorker:
                             detected_dict,
                             self.target_ids
                         )
+                        fallback_stats = lightglue_fallback.get_last_frame_stats()
                         
                         # Rebuild dets list from updated detected_dict
                         dets = [
@@ -330,7 +353,7 @@ class CameraWorker:
                         except Exception:
                             pass
 
-                    storage.save_annotated(f.idx, draw)
+                    annotated_path = storage.save_annotated(f.idx, draw)
                     
                     # Save debug frame if LightGlue debug enabled
                     if lightglue_fallback is not None and self.config.lightglue.debug_save:
@@ -341,6 +364,7 @@ class CameraWorker:
 
                 if self.config.save_frames:
                     storage.save_frame(raw_frame)
+                    image_path = str(storage.last_path or "")
 
                 # Compute reference-relative poses if reference marker is present
                 ref_visible = False
@@ -411,13 +435,66 @@ class CameraWorker:
 
                 total_frame_ms = (time.perf_counter() - frame_loop_start) * 1000.0
                 if metrics_logger is not None:
+                    target_ids = self.target_ids if self.target_ids is not None else {d.marker_id for d in dets}
+                    final_detected_target_ids = {d.marker_id for d in dets if d.marker_id in target_ids}
+
+                    aruco_success = False
+                    if target_ids:
+                        aruco_success = target_ids.issubset(aruco_detected_ids)
+
+                    fallback_triggered = bool(fallback_stats.get("fallback_triggered", False))
+                    fallback_success = bool(fallback_stats.get("fallback_success", False))
+
+                    detection_source = "none"
+                    if fallback_success:
+                        detection_source = "lightglue_assisted"
+                    elif len(final_detected_target_ids) > 0:
+                        detection_source = "aruco"
+
+                    pose_recovered = any(
+                        (mid in pose_map and pose_map[mid] is not None)
+                        for mid in final_detected_target_ids
+                    )
+
+                    failure_reason = fallback_stats.get("failure_reason")
+                    if aruco_success:
+                        final_status = "aruco_success"
+                    elif not fallback_triggered:
+                        final_status = "aruco_fail_no_fallback"
+                    elif fallback_success:
+                        final_status = "fallback_success"
+                    elif failure_reason == "insufficient_inliers":
+                        final_status = "fallback_triggered_insufficient_inliers"
+                    elif failure_reason == "no_match":
+                        final_status = "fallback_triggered_no_match"
+                    else:
+                        final_status = "total_failure"
+
                     metrics_logger.log_frame(
-                        timestamp=f.ts_iso,
-                        frame_index=f.idx,
-                        detected_marker_ids=[d.marker_id for d in dets],
-                        pose_map=pose_map,
-                        aruco_detect_ms=aruco_detect_ms,
-                        total_frame_ms=total_frame_ms,
+                        {
+                            "frame_id": f.idx,
+                            "timestamp": f.ts_iso,
+                            "camera_name": self.config.camera_name,
+                            "condition_label": condition_label,
+                            "system_mode": system_mode,
+                            "aruco_success": aruco_success,
+                            "fallback_triggered": fallback_triggered,
+                            "fallback_success": fallback_success,
+                            "detection_source": detection_source,
+                            "raw_match_count": int(fallback_stats.get("raw_match_count", 0)),
+                            "ransac_inlier_count": int(fallback_stats.get("ransac_inlier_count", 0)),
+                            "inlier_ratio": float(fallback_stats.get("inlier_ratio", 0.0)),
+                            "pose_recovered": pose_recovered,
+                            "aruco_detect_ms": aruco_detect_ms,
+                            "superpoint_ms": float(fallback_stats.get("superpoint_ms", 0.0)),
+                            "lightglue_ms": float(fallback_stats.get("lightglue_ms", 0.0)),
+                            "ransac_ms": float(fallback_stats.get("ransac_ms", 0.0)),
+                            "fallback_total_ms": float(fallback_stats.get("fallback_total_ms", 0.0)),
+                            "pipeline_total_ms": total_frame_ms,
+                            "final_status": final_status,
+                            "image_path": image_path,
+                            "annotated_path": annotated_path,
+                        }
                     )
 
                 frames += 1

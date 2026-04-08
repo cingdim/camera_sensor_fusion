@@ -7,9 +7,10 @@ SuperPoint+LightGlue feature matching with homography-based corner recovery.
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import cv2
 import numpy as np
@@ -35,6 +36,15 @@ class DebugInfo:
     inliers: int
     match_quality: float
     homography: Optional[np.ndarray] = None
+    raw_match_count: int = 0
+    ransac_inlier_count: int = 0
+    inlier_ratio: float = 0.0
+    superpoint_ms: float = 0.0
+    lightglue_ms: float = 0.0
+    ransac_ms: float = 0.0
+    fallback_total_ms: float = 0.0
+    success: bool = True
+    failure_reason: Optional[str] = None
 
 
 class LightGlueFallback:
@@ -75,6 +85,18 @@ class LightGlueFallback:
         self.superpoint = None
         self.lightglue = None
         self.torch_available = False
+        self._last_frame_stats: dict[str, Any] = {
+            "fallback_triggered": False,
+            "fallback_success": False,
+            "raw_match_count": 0,
+            "ransac_inlier_count": 0,
+            "inlier_ratio": 0.0,
+            "superpoint_ms": 0.0,
+            "lightglue_ms": 0.0,
+            "ransac_ms": 0.0,
+            "fallback_total_ms": 0.0,
+            "failure_reason": None,
+        }
         
         if not self.enabled:
             logger.info("LightGlue fallback is disabled")
@@ -275,6 +297,18 @@ class LightGlueFallback:
             (updated_detected_dict, debug_info_list)
         """
         if not self.enabled:
+            self._last_frame_stats = {
+                "fallback_triggered": False,
+                "fallback_success": False,
+                "raw_match_count": 0,
+                "ransac_inlier_count": 0,
+                "inlier_ratio": 0.0,
+                "superpoint_ms": 0.0,
+                "lightglue_ms": 0.0,
+                "ransac_ms": 0.0,
+                "fallback_total_ms": 0.0,
+                "failure_reason": None,
+            }
             return detected_dict, []
         
         debug_info: List[DebugInfo] = []
@@ -306,6 +340,18 @@ class LightGlueFallback:
         missing_ids = expected_ids - detected_ids
         
         if not missing_ids:
+            self._last_frame_stats = {
+                "fallback_triggered": False,
+                "fallback_success": False,
+                "raw_match_count": 0,
+                "ransac_inlier_count": 0,
+                "inlier_ratio": 0.0,
+                "superpoint_ms": 0.0,
+                "lightglue_ms": 0.0,
+                "ransac_ms": 0.0,
+                "fallback_total_ms": 0.0,
+                "failure_reason": None,
+            }
             return updated_dict, debug_info
         
         logger.debug(f"Frame {self.current_frame_index}: missing markers {missing_ids}")
@@ -322,6 +368,14 @@ class LightGlueFallback:
         )
         
         recovery_attempts = 0
+        fallback_success = False
+        raw_match_count = 0
+        ransac_inlier_count = 0
+        superpoint_ms = 0.0
+        lightglue_ms = 0.0
+        ransac_ms = 0.0
+        fallback_total_ms = 0.0
+        failure_reason: Optional[str] = None
         
         # Attempt recovery for each missing marker (up to max_attempts)
         for marker_id in missing_ids_sorted:
@@ -330,9 +384,24 @@ class LightGlueFallback:
                 break
             
             recovery_attempts += 1
-            recovered_corners, info = self._recover_marker(
+            attempt_start = time.perf_counter()
+            recovered_corners, info, fail_reason = self._recover_marker(
                 marker_id, frame_gray, frame_bgr
             )
+            fallback_total_ms += (time.perf_counter() - attempt_start) * 1000.0
+
+            if fail_reason == "insufficient_inliers":
+                failure_reason = "insufficient_inliers"
+            elif failure_reason is None and fail_reason is not None:
+                failure_reason = fail_reason
+
+            if info is not None:
+                raw_match_count += int(info.raw_match_count)
+                ransac_inlier_count += int(info.ransac_inlier_count)
+                superpoint_ms += float(info.superpoint_ms)
+                lightglue_ms += float(info.lightglue_ms)
+                ransac_ms += float(info.ransac_ms)
+
             if recovered_corners is not None:
                 # Verify corners are in correct OpenCV ArUco format: (4, 2) float32
                 if not isinstance(recovered_corners, np.ndarray):
@@ -345,16 +414,38 @@ class LightGlueFallback:
                 
                 updated_dict[marker_id] = recovered_corners
                 debug_info.append(info)
+                fallback_success = True
                 logger.info(f"Recovered marker {marker_id} via {info.source}")
+
+        inlier_ratio = 0.0
+        if raw_match_count > 0:
+            inlier_ratio = ransac_inlier_count / float(raw_match_count)
+
+        self._last_frame_stats = {
+            "fallback_triggered": True,
+            "fallback_success": fallback_success,
+            "raw_match_count": raw_match_count,
+            "ransac_inlier_count": ransac_inlier_count,
+            "inlier_ratio": inlier_ratio,
+            "superpoint_ms": superpoint_ms,
+            "lightglue_ms": lightglue_ms,
+            "ransac_ms": ransac_ms,
+            "fallback_total_ms": fallback_total_ms,
+            "failure_reason": failure_reason,
+        }
         
         return updated_dict, debug_info
+
+    def get_last_frame_stats(self) -> dict[str, Any]:
+        """Return fallback evaluation stats collected for the most recent frame."""
+        return dict(self._last_frame_stats)
     
     def _recover_marker(
         self,
         marker_id: int,
         frame_gray: np.ndarray,
         frame_bgr: np.ndarray
-    ) -> Tuple[Optional[np.ndarray], Optional[DebugInfo]]:
+    ) -> Tuple[Optional[np.ndarray], Optional[DebugInfo], Optional[str]]:
         """Attempt to recover a single missing marker.
         
         Strategy:
@@ -381,7 +472,7 @@ class LightGlueFallback:
                 if corners is not None:
                     # Verify ID
                     if self._verify_marker_id(frame_gray, corners, marker_id):
-                        return corners, info
+                        return corners, info, None
                     else:
                         logger.debug(f"Tracking result failed ID verification for marker {marker_id}")
         
@@ -394,10 +485,10 @@ class LightGlueFallback:
                 f"Skipping reacquire for marker {marker_id}: only {frames_since_reacquire} frames "
                 f"since last attempt (min interval: {self.cfg.reacquire_interval_frames})"
             )
-            return None, None
+            return None, None, "no_match"
         
         # Fall back to template reacquire
-        corners, info = self._reacquire_from_template(marker_id, frame_gray, frame_bgr)
+        corners, info, fail_reason = self._reacquire_from_template(marker_id, frame_gray, frame_bgr)
         
         if corners is not None:
             # Update last reacquire frame
@@ -405,12 +496,12 @@ class LightGlueFallback:
             
             # Verify ID
             if self._verify_marker_id(frame_gray, corners, marker_id):
-                return corners, info
+                return corners, info, None
             else:
                 logger.warning(f"Template reacquire result failed ID verification for marker {marker_id}")
-                return None, None
+                return None, info, "no_match"
         
-        return None, None
+        return None, info, fail_reason
     
     def _track_marker(
         self,
@@ -428,6 +519,7 @@ class LightGlueFallback:
         Returns:
             (corners, debug_info) or (None, None) if tracking failed
         """
+        flow_start = time.perf_counter()
         try:
             # Define ROI around last known position
             last_corners = tracker_state.last_corners
@@ -494,7 +586,11 @@ class LightGlueFallback:
                 marker_id=marker_id,
                 source="lg_track",
                 inliers=4,
-                match_quality=1.0 - err.mean() if err is not None else 1.0
+                match_quality=1.0 - err.mean() if err is not None else 1.0,
+                raw_match_count=4,
+                ransac_inlier_count=4,
+                inlier_ratio=1.0,
+                fallback_total_ms=(time.perf_counter() - flow_start) * 1000.0,
             )
             
             return tracked_corners.reshape(4, 2).astype(np.float32), info
@@ -508,7 +604,7 @@ class LightGlueFallback:
         marker_id: int,
         frame_gray: np.ndarray,
         frame_bgr: np.ndarray
-    ) -> Tuple[Optional[np.ndarray], Optional[DebugInfo]]:
+    ) -> Tuple[Optional[np.ndarray], Optional[DebugInfo], Optional[str]]:
         """Re-acquire marker by matching template using LightGlue.
         
         Uses cached template features (computed once at init) to avoid recomputation.
@@ -524,8 +620,9 @@ class LightGlueFallback:
         """
         if marker_id not in self.templates:
             logger.debug(f"No template available for marker {marker_id}")
-            return None, None
+            return None, None, "no_match"
         
+        total_start = time.perf_counter()
         try:
             import torch
             
@@ -566,30 +663,50 @@ class LightGlueFallback:
             # Extract features from search region
             h, w = search_region.shape
             frame_tensor = torch.from_numpy(search_region.astype(np.float32) / 255.0).to(self.device)[None, None]
+            superpoint_start = time.perf_counter()
             
             with torch.no_grad():
                 frame_feats = self.superpoint({'image': frame_tensor})
                 frame_kpts = frame_feats['keypoints'][0]  # (N, 2) on device
                 frame_desc = frame_feats['descriptors'][0].T  # (N, 256) on device
-                
-                # Call LightGlue with flattened feature dicts using rbd()
-                # Prepare features dict for LightGlue
-                feats0 = {'keypoints': template_kpts, 'descriptors': template_desc}
-                feats1 = {'keypoints': frame_kpts, 'descriptors': frame_desc}
-                
-                # Match features using LightGlue with flattened dict
-                matches = self.lightglue({
-                    **self.rbd(feats0),
-                    **self.rbd(feats1)
-                })
+            superpoint_ms = (time.perf_counter() - superpoint_start) * 1000.0
+
+            # Call LightGlue with flattened feature dicts using rbd()
+            # Prepare features dict for LightGlue
+            feats0 = {'keypoints': template_kpts, 'descriptors': template_desc}
+            feats1 = {'keypoints': frame_kpts, 'descriptors': frame_desc}
+
+            # Match features using LightGlue with flattened dict
+            lightglue_start = time.perf_counter()
+            matches = self.lightglue({
+                **self.rbd(feats0),
+                **self.rbd(feats1)
+            })
+            lightglue_ms = (time.perf_counter() - lightglue_start) * 1000.0
             
             # Extract matched keypoints using matches0
             matches0 = matches['matches0']  # Shape (num_keypoints_template,)
             valid = matches0 >= 0  # Boolean mask for valid matches
+            raw_match_count = int(valid.sum())
             
             if valid.sum() < self.cfg.min_inliers:
                 logger.debug(f"Insufficient matches for marker {marker_id}: {valid.sum()}")
-                return None, None
+                info = DebugInfo(
+                    marker_id=marker_id,
+                    source="lg_reacquire",
+                    inliers=0,
+                    match_quality=0.0,
+                    raw_match_count=raw_match_count,
+                    ransac_inlier_count=0,
+                    inlier_ratio=0.0,
+                    superpoint_ms=superpoint_ms,
+                    lightglue_ms=lightglue_ms,
+                    ransac_ms=0.0,
+                    fallback_total_ms=(time.perf_counter() - total_start) * 1000.0,
+                    success=False,
+                    failure_reason="insufficient_inliers",
+                )
+                return None, info, "insufficient_inliers"
             
             # Get ONLY matched keypoints (not all keypoints)
             template_matched_idx = torch.where(valid)[0]  # Indices of matched template keypoints
@@ -600,21 +717,53 @@ class LightGlueFallback:
             frame_pts = frame_kpts[frame_matched_idx].cpu().numpy()  # (M, 2)
             
             # Compute homography using ONLY matched keypoints
+            ransac_start = time.perf_counter()
             H, mask = cv2.findHomography(
                 template_pts,
                 frame_pts,
                 cv2.RANSAC,
                 5.0
             )
+            ransac_ms = (time.perf_counter() - ransac_start) * 1000.0
             
             if H is None:
                 logger.debug(f"Homography computation failed for marker {marker_id}")
-                return None, None
+                info = DebugInfo(
+                    marker_id=marker_id,
+                    source="lg_reacquire",
+                    inliers=0,
+                    match_quality=0.0,
+                    raw_match_count=raw_match_count,
+                    ransac_inlier_count=0,
+                    inlier_ratio=0.0,
+                    superpoint_ms=superpoint_ms,
+                    lightglue_ms=lightglue_ms,
+                    ransac_ms=ransac_ms,
+                    fallback_total_ms=(time.perf_counter() - total_start) * 1000.0,
+                    success=False,
+                    failure_reason="no_match",
+                )
+                return None, info, "no_match"
             
             inliers = mask.sum() if mask is not None else 0
             if inliers < self.cfg.min_inliers:
                 logger.debug(f"Insufficient inliers for marker {marker_id}: {inliers}")
-                return None, None
+                info = DebugInfo(
+                    marker_id=marker_id,
+                    source="lg_reacquire",
+                    inliers=int(inliers),
+                    match_quality=0.0,
+                    raw_match_count=raw_match_count,
+                    ransac_inlier_count=int(inliers),
+                    inlier_ratio=(int(inliers) / float(raw_match_count)) if raw_match_count > 0 else 0.0,
+                    superpoint_ms=superpoint_ms,
+                    lightglue_ms=lightglue_ms,
+                    ransac_ms=ransac_ms,
+                    fallback_total_ms=(time.perf_counter() - total_start) * 1000.0,
+                    success=False,
+                    failure_reason="insufficient_inliers",
+                )
+                return None, info, "insufficient_inliers"
             
             # Project template corners to frame (within search region)
             corners_transformed = cv2.perspectiveTransform(
@@ -654,11 +803,20 @@ class LightGlueFallback:
                 source="lg_reacquire",
                 inliers=int(inliers),
                 match_quality=match_quality,
-                homography=H
+                homography=H,
+                raw_match_count=raw_match_count,
+                ransac_inlier_count=int(inliers),
+                inlier_ratio=match_quality,
+                superpoint_ms=superpoint_ms,
+                lightglue_ms=lightglue_ms,
+                ransac_ms=ransac_ms,
+                fallback_total_ms=(time.perf_counter() - total_start) * 1000.0,
+                success=True,
+                failure_reason=None,
             )
             
-            return recovered_corners, info
+            return recovered_corners, info, None
             
         except Exception as e:
             logger.debug(f"Template reacquire failed for marker {marker_id}: {e}")
-            return None, None
+            return None, None, "no_match"

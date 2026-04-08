@@ -39,6 +39,42 @@ def _print_camera_metrics(session_root: Path, camera_name: str, show_summary: bo
             print(f"  failed to read summary json: {exc}")
 
 
+def _print_camera_one_line(session_root: Path, camera_name: str) -> None:
+    session = _latest_session(session_root, camera_name)
+    if session is None:
+        print(f"[{camera_name}] no session")
+        return
+
+    summary_json = session / "metrics_summary.json"
+    if not summary_json.exists():
+        print(f"[{camera_name}] latest={session.name} summary=MISSING")
+        return
+
+    try:
+        data = json.loads(summary_json.read_text(encoding="utf-8"))
+    except Exception as exc:
+        print(f"[{camera_name}] latest={session.name} summary=ERROR ({exc})")
+        return
+
+    total = int(data.get("total_frames", 0))
+    aruco_rate = float(data.get("aruco_success_rate", 0.0))
+    hybrid_rate = float(data.get("hybrid_success_rate", 0.0))
+    recovery_rate = float(data.get("recovery_rate", 0.0))
+    fallback_count = int(data.get("fallback_triggered_count", 0))
+    pipeline = data.get("pipeline_latency_ms", {}) or {}
+    pipe_mean = float(pipeline.get("mean", 0.0))
+    pipe_p50 = float(pipeline.get("median", 0.0))
+    pipe_max = float(pipeline.get("max", 0.0))
+    fallback_mean = float(data.get("mean_fallback_latency_ms", 0.0))
+
+    print(
+        f"[{camera_name}] latest={session.name} frames={total} "
+        f"aruco={aruco_rate:.3f} hybrid={hybrid_rate:.3f} recovery={recovery_rate:.3f} "
+        f"fallback_n={fallback_count} pipe_ms(mean/p50/max)={pipe_mean:.1f}/{pipe_p50:.1f}/{pipe_max:.1f} "
+        f"fallback_ms_mean={fallback_mean:.1f}"
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Show latest metrics files for camera sessions"
@@ -59,6 +95,11 @@ def main() -> int:
         action="store_true",
         help="Print the full metrics_summary.json content",
     )
+    parser.add_argument(
+        "--one-line",
+        action="store_true",
+        help="Print one-line summary per camera from latest metrics_summary.json",
+    )
     args = parser.parse_args()
 
     session_root = Path(args.session_root)
@@ -67,6 +108,9 @@ def main() -> int:
         return 1
 
     for camera_name in args.cameras:
+        if args.one_line:
+            _print_camera_one_line(session_root, camera_name)
+            continue
         _print_camera_metrics(session_root, camera_name, args.show_summary)
 
     return 0
