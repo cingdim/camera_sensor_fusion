@@ -16,6 +16,7 @@ RUN apt-get update \
         gstreamer1.0-plugins-base \
         gstreamer1.0-plugins-good \
         gstreamer1.0-plugins-bad \
+        gstreamer1.0-plugins-ugly \
         gstreamer1.0-libav \
         libgstreamer1.0-0 \
         libgstreamer-plugins-base1.0-0 \
@@ -30,7 +31,9 @@ RUN python3 -m pip install --break-system-packages --upgrade pip \
     && grep -v opencv-python requirements.txt > req.txt \
     && python3 -m pip install --break-system-packages --no-cache-dir -r req.txt \
     && python3 -m pip install --break-system-packages --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu \
-    && python3 -m pip install --break-system-packages --no-cache-dir git+https://github.com/cvg/LightGlue.git
+    && python3 -m pip install --break-system-packages --no-cache-dir git+https://github.com/cvg/LightGlue.git \
+    && python3 -m pip install --break-system-packages --no-cache-dir "numpy<2" \
+    && python3 -m pip uninstall --break-system-packages -y opencv-python
 
 COPY . /app
 
