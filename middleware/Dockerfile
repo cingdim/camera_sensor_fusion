@@ -10,6 +10,7 @@ RUN apt-get update \
         python3-pip \
         python3-venv \
         python3-opencv \
+        git \
         ffmpeg \
         gstreamer1.0-tools \
         gstreamer1.0-plugins-base \
