@@ -103,6 +103,10 @@ class LightGlueFallback:
             logger.info("LightGlue fallback is disabled")
             return
         
+        # Log configuration
+        logger.info(f"[LightGlue] Initializing LightGlue fallback with template_dir: {Path(self.cfg.template_dir).resolve()}")
+        logger.info(f"[LightGlue] Debug save: {self.cfg.debug_save}, device: {self.device}")
+        
         # Try to import and initialize torch/lightglue
         try:
             import torch
@@ -307,29 +311,42 @@ class LightGlueFallback:
             return
         
         template_dir = Path(self.cfg.template_dir)
+        logger.info(f"[LightGlue] Starting template loading from: {template_dir.resolve()}")
+        
         if not template_dir.exists():
-            logger.warning(f"Template directory not found: {template_dir}")
-            logger.warning("LightGlue fallback will not be able to recover markers")
+            logger.error(f"[LightGlue] Template directory not found: {template_dir.resolve()}")
+            logger.error("[LightGlue] LightGlue fallback will not be able to recover markers")
             return
         
         import torch
         
+        # Find all template files
+        template_files = sorted(template_dir.glob("id_*.png"))
+        logger.info(f"[LightGlue] Found {len(template_files)} template files in {template_dir.name}")
+        
+        if not template_files:
+            logger.warning(f"[LightGlue] No template files (id_*.png) found in {template_dir.resolve()}")
+            return
+        
         # Look for templates named id_<ID>.png
-        for template_path in template_dir.glob("id_*.png"):
+        for template_path in template_files:
             try:
                 marker_id = int(template_path.stem.split('_')[1])
             except (IndexError, ValueError):
-                logger.warning(f"Invalid template filename: {template_path.name}")
+                logger.warning(f"[LightGlue] Invalid template filename: {template_path.name}")
                 continue
             
             # Load template image
             img = cv2.imread(str(template_path), cv2.IMREAD_GRAYSCALE)
             if img is None:
-                logger.warning(f"Failed to load template: {template_path}")
+                logger.error(f"[LightGlue] Failed to load template image: {template_path.resolve()}")
                 continue
+            
+            logger.info(f"[LightGlue] Loading template for marker_id={marker_id} from {template_path.resolve()}")
             
             # Extract features using SuperPoint (ONCE at init time)
             h, w = img.shape
+            logger.debug(f"[LightGlue] Template image size: {w}x{h}")
             
             # Convert to torch tensor and normalize
             img_tensor = torch.from_numpy(img.astype(np.float32) / 255.0).to(self.device)[None, None]
@@ -358,9 +375,12 @@ class LightGlueFallback:
                 'descriptors': template_desc,  # torch.Tensor (N, 256) on device
                 'corners': corners
             }
-            logger.info(f"Loaded template for marker {marker_id}: {template_kpts.shape[0]} keypoints (cached as torch tensors)")
+            logger.info(f"[LightGlue] ✓ Loaded template for marker_id={marker_id}: {int(template_kpts.shape[0])} keypoints from SuperPoint")
         
-        logger.info(f"Loaded {len(self.templates)} marker templates with cached torch features")
+        logger.info(f"[LightGlue] ✓ Template loading complete: {len(self.templates)} marker templates loaded")
+        if self.templates:
+            loaded_ids = sorted(self.templates.keys())
+            logger.info(f"[LightGlue] Loaded template IDs: {loaded_ids}")
     
     def recover_missing(
         self,
