@@ -30,6 +30,7 @@ class LightGlueConfig:
     debug_save: bool = False
     corner_refine: bool = True
     match_threshold: float = 0.2
+    debug_matches_dir: Optional[str] = None
     # Safety features
     verify_id: bool = True  # Verify ArUco ID after recovery
     max_fallback_markers_per_frame: int = 2  # Limit fallback attempts per frame
@@ -185,6 +186,8 @@ def load_config(path: str | Path) -> CameraConfig:
         lg_cfg.debug_save = bool(lg_raw.get("debug_save", lg_cfg.debug_save))
         lg_cfg.corner_refine = bool(lg_raw.get("corner_refine", lg_cfg.corner_refine))
         lg_cfg.match_threshold = float(lg_raw.get("match_threshold", lg_cfg.match_threshold))
+        debug_matches_dir = lg_raw.get("debug_matches_dir", lg_cfg.debug_matches_dir)
+        lg_cfg.debug_matches_dir = str(debug_matches_dir) if debug_matches_dir is not None else None
         lg_cfg.verify_id = bool(lg_raw.get("verify_id", lg_cfg.verify_id))
         lg_cfg.max_fallback_markers_per_frame = int(lg_raw.get("max_fallback_markers_per_frame", lg_cfg.max_fallback_markers_per_frame))
         lg_cfg.reacquire_interval_frames = int(lg_raw.get("reacquire_interval_frames", lg_cfg.reacquire_interval_frames))

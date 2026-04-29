@@ -166,6 +166,7 @@ class CameraWorker:
         if self.config.lightglue is not None and self.config.lightglue.enabled:
             try:
                 from .fallback import LightGlueFallback
+                self.config.lightglue.debug_matches_dir = str(Path(storage.session_dir) / "debug_lightglue_matches")
                 lightglue_fallback = LightGlueFallback(
                     self.config.lightglue,
                     self.config.aruco_dict

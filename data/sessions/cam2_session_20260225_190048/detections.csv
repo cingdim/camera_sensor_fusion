@@ -1,1 +1,0 @@
-frame_idx,capture_time,recorded_at,marker_id,rvec_x,rvec_y,rvec_z,tvec_x,tvec_y,tvec_z,ref_visible,ref_rvec_x,ref_rvec_y,ref_rvec_z,ref_tvec_x,ref_tvec_y,ref_tvec_z,length_m,image_path

@@ -23,6 +23,7 @@ def test_lightglue_config_defaults():
     assert cfg.debug_save is False
     assert cfg.corner_refine is True
     assert cfg.match_threshold == 0.2
+    assert cfg.debug_matches_dir is None
     print("✓ LightGlueConfig defaults correct")
 
 
@@ -76,6 +77,7 @@ def test_load_config_with_lightglue():
         # Check defaults are preserved for non-specified fields
         assert cfg.lightglue.roi_expand_px == 50
         assert cfg.lightglue.debug_save is False
+        assert cfg.lightglue.debug_matches_dir is None
         print("✓ Config loading with LightGlue section works")
     finally:
         Path(temp_path).unlink()

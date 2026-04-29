@@ -67,6 +67,7 @@ class LightGlueFallback:
         self.aruco_cfg = aruco_cfg
         self.device = lightglue_cfg.device
         self.enabled = lightglue_cfg.enabled
+        self.debug_matches_dir = Path(lightglue_cfg.debug_matches_dir) if getattr(lightglue_cfg, "debug_matches_dir", None) else None
         
         # Tracker state per marker ID
         self.tracker_states: Dict[int, TrackerState] = {}
@@ -142,6 +143,61 @@ class LightGlueFallback:
         
         # Load templates
         self._load_templates()
+
+    def _save_correspondence_debug_image(
+        self,
+        marker_id: int,
+        template_image: np.ndarray,
+        frame_image: np.ndarray,
+        template_kpts,
+        frame_kpts,
+        match_pairs,
+        frame_index: int,
+        label: str,
+    ) -> None:
+        if not self.cfg.debug_save or self.debug_matches_dir is None:
+            return
+
+        try:
+            import matplotlib
+
+            matplotlib.use("Agg", force=True)
+            import matplotlib.pyplot as plt
+            from lightglue.viz2d import plot_images, plot_matches
+        except Exception as exc:
+            logger.debug("LightGlue correspondence visualization unavailable: %s", exc)
+            return
+
+        try:
+            self.debug_matches_dir.mkdir(parents=True, exist_ok=True)
+            out_path = self.debug_matches_dir / (
+                f"frame_{frame_index:06d}_marker_{marker_id}_{label}_{time.time_ns()}.png"
+            )
+
+            plt.close("all")
+            plot_images([template_image, frame_image], titles=["template", "frame/roi"])
+
+            if match_pairs is not None and len(match_pairs) > 0:
+                if hasattr(template_kpts, "detach"):
+                    template_kpts = template_kpts.detach().cpu()
+                if hasattr(frame_kpts, "detach"):
+                    frame_kpts = frame_kpts.detach().cpu()
+                if hasattr(match_pairs, "detach"):
+                    match_pairs = match_pairs.detach().cpu()
+
+                m_kpts0 = template_kpts[match_pairs[:, 0]]
+                m_kpts1 = frame_kpts[match_pairs[:, 1]]
+                plot_matches(m_kpts0, m_kpts1)
+
+            plt.savefig(out_path)
+            plt.close(plt.gcf())
+            logger.info("Saved LightGlue correspondence image: %s", out_path)
+        except Exception as exc:
+            logger.debug(
+                "Failed to save LightGlue correspondence image for marker %s: %s",
+                marker_id,
+                exc,
+            )
     
     def _init_aruco_detector(self):
         """Initialize ArUco detector for ID verification."""
@@ -688,6 +744,20 @@ class LightGlueFallback:
             matches0 = matches['matches0']  # Shape (num_keypoints_template,)
             valid = matches0 >= 0  # Boolean mask for valid matches
             raw_match_count = int(valid.sum())
+            template_matched_idx = torch.where(valid)[0]  # Indices of matched template keypoints
+            frame_matched_idx = matches0[valid]  # Indices of matched frame keypoints
+            match_pairs = torch.stack([template_matched_idx, frame_matched_idx], dim=1)
+
+            self._save_correspondence_debug_image(
+                marker_id=marker_id,
+                template_image=template_data["image"],
+                frame_image=search_region,
+                template_kpts=template_kpts,
+                frame_kpts=frame_kpts,
+                match_pairs=match_pairs,
+                frame_index=self.current_frame_index,
+                label="reacquire",
+            )
             
             if valid.sum() < self.cfg.min_inliers:
                 logger.debug(f"Insufficient matches for marker {marker_id}: {valid.sum()}")
@@ -707,10 +777,6 @@ class LightGlueFallback:
                     failure_reason="insufficient_inliers",
                 )
                 return None, info, "insufficient_inliers"
-            
-            # Get ONLY matched keypoints (not all keypoints)
-            template_matched_idx = torch.where(valid)[0]  # Indices of matched template keypoints
-            frame_matched_idx = matches0[valid]  # Indices of matched frame keypoints
             
             # Extract matched point coordinates (convert to numpy for homography)
             template_pts = template_kpts[template_matched_idx].cpu().numpy()  # (M, 2)

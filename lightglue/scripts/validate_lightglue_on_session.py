@@ -352,6 +352,7 @@ def main():
         corner_refine=True,
         match_threshold=0.2
     )
+    lg_config.debug_matches_dir = str(Path(args.output) / "debug_lightglue_matches") if args.output else str(Path(args.session) / "debug_lightglue_matches")
     
     # Run validation
     stats = validate_session(
