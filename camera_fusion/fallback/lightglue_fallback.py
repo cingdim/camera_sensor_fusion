@@ -735,16 +735,21 @@ class LightGlueFallback:
             template_desc = template_data['descriptors']  # Cached torch tensor (N, 256)
             template_corners = template_data['corners']
             
-            # SAFETY GUARDRAIL: Prefer ROI-based matching if last_corners exist
+            # ALWAYS use tight ROI around marker to reduce noise
+            # Priority 1: Use last-known marker position if available
+            # Priority 2: Crop central region as fallback
             search_region = frame_gray
             roi_offset_x = 0
             roi_offset_y = 0
+            h_full, w_full = frame_gray.shape
             
-            if self.cfg.prefer_roi_matching and marker_id in self.tracker_states:
+            # Try to get ROI from last known marker position
+            roi_found = False
+            if marker_id in self.tracker_states:
                 tracker_state = self.tracker_states[marker_id]
                 if tracker_state.last_corners is not None:
-                    # Define search ROI around last known position (larger expansion)
-                    roi_expand = self.cfg.roi_expand_px * 3  # 3x expansion for reacquire
+                    # ROI around last known position with tight expansion
+                    roi_expand = self.cfg.roi_expand_px
                     last_corners = tracker_state.last_corners
                     
                     x_min = int(np.floor(last_corners[:, 0].min())) - roi_expand
@@ -752,7 +757,6 @@ class LightGlueFallback:
                     y_min = int(np.floor(last_corners[:, 1].min())) - roi_expand
                     y_max = int(np.ceil(last_corners[:, 1].max())) + roi_expand
                     
-                    h_full, w_full = frame_gray.shape
                     x_min = max(0, x_min)
                     y_min = max(0, y_min)
                     x_max = min(w_full, x_max)
@@ -762,22 +766,25 @@ class LightGlueFallback:
                         search_region = frame_gray[y_min:y_max, x_min:x_max]
                         roi_offset_x = x_min
                         roi_offset_y = y_min
-                        logger.info(f"Using ROI search for marker {marker_id}: ({x_min},{y_min})-({x_max},{y_max})")
-                    else:
-                        logger.warning(f"Skipping match: ROI empty for marker {marker_id}")
-                        if self.debug_matches_dir is not None:
-                            self._save_correspondence_debug_image(
-                                marker_id=marker_id,
-                                template_image=template_data["image"],
-                                frame_image=frame_gray,
-                                template_kpts=template_kpts,
-                                frame_kpts=template_kpts[:0],
-                                match_pairs=torch.empty((0, 2)),
-                                frame_index=self.current_frame_index,
-                                label="empty_roi",
-                                raw_match_count=0,
-                            )
-                        return None, None, "no_match"
+                        roi_found = True
+                        logger.info(f"[LightGlue] Using tight ROI from last-known position for marker {marker_id}: ({x_min},{y_min})-({x_max},{y_max}), region size {x_max-x_min}x{y_max-y_min}")
+            
+            # Fallback: Crop central region if no tracker state
+            if not roi_found:
+                # Default to central region around frame center (common marker location)
+                # Crop a 60% x 60% region centered, maintaining aspect ratio
+                crop_w = max(int(w_full * 0.6), 300)
+                crop_h = max(int(h_full * 0.6), 300)
+                
+                x_min = (w_full - crop_w) // 2
+                y_min = (h_full - crop_h) // 2
+                x_max = x_min + crop_w
+                y_max = y_min + crop_h
+                
+                search_region = frame_gray[y_min:y_max, x_min:x_max]
+                roi_offset_x = x_min
+                roi_offset_y = y_min
+                logger.info(f"[LightGlue] Using central ROI region for marker {marker_id}: ({x_min},{y_min})-({x_max},{y_max}), region size {x_max-x_min}x{y_max-y_min}")
             
             # Extract features from search region
             h, w = search_region.shape
@@ -865,6 +872,10 @@ class LightGlueFallback:
             # Extract matched point coordinates (convert to numpy for homography)
             template_pts = template_kpts[template_matched_idx].cpu().numpy()  # (M, 2)
             frame_pts = frame_kpts[frame_matched_idx].cpu().numpy()  # (M, 2)
+            
+            # Translate frame_pts back to full-frame coordinates (they're currently in ROI space)
+            frame_pts = frame_pts + np.array([[roi_offset_x, roi_offset_y]], dtype=np.float32)
+            logger.info(f"[LightGlue] Translated {len(frame_pts)} matched points from ROI space to full-frame coordinates (offset: {roi_offset_x}, {roi_offset_y})")
             
             # Compute homography using ONLY matched keypoints
             ransac_start = time.perf_counter()
