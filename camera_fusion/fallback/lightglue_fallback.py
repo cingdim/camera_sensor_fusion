@@ -791,16 +791,28 @@ class LightGlueFallback:
             superpoint_ms = (time.perf_counter() - superpoint_start) * 1000.0
             logger.info(f"SuperPoint extracted {len(frame_kpts)} keypoints for marker {marker_id}")
 
-            # Call LightGlue with flattened feature dicts using rbd()
-            # Prepare features dict for LightGlue
-            feats0 = {'keypoints': template_kpts, 'descriptors': template_desc}
-            feats1 = {'keypoints': frame_kpts, 'descriptors': frame_desc}
+            # Call LightGlue with extracted SuperPoint features
+            # Prepare features dict for LightGlue with correct shapes:
+            # LightGlue expects:
+            #   keypoints shape (batch, num_kpts, 2)
+            #   descriptors shape (batch, 256, num_kpts) - SuperPoint native format
+            feats0 = {
+                'keypoints': template_kpts[None],  # Add batch dim: (1, N, 2)
+                'descriptors': template_desc.T[None]  # Transpose back from (N,256) to (256,N), then batch: (1, 256, N)
+            }
+            feats1 = {
+                'keypoints': frame_kpts[None],  # Add batch dim: (1, M, 2)
+                'descriptors': frame_desc.T[None]  # Transpose back from (N,256) to (256,M), then batch: (1, 256, M)
+            }
 
-            # Match features using LightGlue with flattened dict
+            # Log before calling LightGlue
+            logger.info(f"[LightGlue] Running match with {template_kpts.shape[0]} template keypoints and {frame_kpts.shape[0]} frame keypoints for marker {marker_id}")
+
+            # Match features using LightGlue with correct format (image0/image1 keys)
             lightglue_start = time.perf_counter()
             matches = self.lightglue({
-                **self.rbd(feats0),
-                **self.rbd(feats1)
+                "image0": feats0,
+                "image1": feats1
             })
             lightglue_ms = (time.perf_counter() - lightglue_start) * 1000.0
             
