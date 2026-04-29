@@ -154,13 +154,26 @@ class LightGlueFallback:
         match_pairs,
         frame_index: int,
         label: str,
+        raw_match_count: int = 0,
     ) -> None:
+        """Save correspondence debug image even if matching failed.
+        
+        Args:
+            marker_id: Marker ID
+            template_image: Template image (numpy array)
+            frame_image: Frame/ROI image (numpy array)
+            template_kpts: Template keypoints (torch tensor or numpy array)
+            frame_kpts: Frame keypoints (torch tensor or numpy array)
+            match_pairs: Matched keypoint indices (torch tensor or numpy array, can be empty)
+            frame_index: Current frame index
+            label: Label for the debug image
+            raw_match_count: Number of raw matches (for logging)
+        """
         if not self.cfg.debug_save or self.debug_matches_dir is None:
             return
 
         try:
             import matplotlib
-
             matplotlib.use("Agg", force=True)
             import matplotlib.pyplot as plt
             from lightglue.viz2d import plot_images, plot_matches
@@ -169,14 +182,24 @@ class LightGlueFallback:
             return
 
         try:
+            # Ensure directory exists
             self.debug_matches_dir.mkdir(parents=True, exist_ok=True)
+            
             out_path = self.debug_matches_dir / (
                 f"frame_{frame_index:06d}_marker_{marker_id}_{label}_{time.time_ns()}.png"
             )
 
             plt.close("all")
-            plot_images([template_image, frame_image], titles=["template", "frame/roi"])
+            
+            # Determine title based on match count
+            if raw_match_count == 0:
+                title_suffix = " (0 matches)"
+            else:
+                title_suffix = f" ({raw_match_count} matches)"
+            
+            plot_images([template_image, frame_image], titles=[f"template{title_suffix}", "frame/roi"])
 
+            # Plot matches only if we have any
             if match_pairs is not None and len(match_pairs) > 0:
                 if hasattr(template_kpts, "detach"):
                     template_kpts = template_kpts.detach().cpu()
@@ -187,9 +210,12 @@ class LightGlueFallback:
 
                 m_kpts0 = template_kpts[match_pairs[:, 0]]
                 m_kpts1 = frame_kpts[match_pairs[:, 1]]
-                plot_matches(m_kpts0, m_kpts1)
+                try:
+                    plot_matches(m_kpts0, m_kpts1)
+                except Exception as e:
+                    logger.debug("Failed to plot match lines: %s", e)
 
-            plt.savefig(out_path)
+            plt.savefig(str(out_path))
             plt.close(plt.gcf())
             logger.info("Saved LightGlue correspondence image: %s", out_path)
         except Exception as exc:
@@ -674,8 +700,10 @@ class LightGlueFallback:
         Returns:
             (corners, debug_info) or (None, None) if reacquire failed
         """
+        logger.info(f"Attempting LightGlue match for marker_id={marker_id}, frame={self.current_frame_index}")
+        
         if marker_id not in self.templates:
-            logger.debug(f"No template available for marker {marker_id}")
+            logger.warning(f"Skipping match: no template found for marker {marker_id}")
             return None, None, "no_match"
         
         total_start = time.perf_counter()
@@ -714,7 +742,22 @@ class LightGlueFallback:
                         search_region = frame_gray[y_min:y_max, x_min:x_max]
                         roi_offset_x = x_min
                         roi_offset_y = y_min
-                        logger.debug(f"Using ROI search for marker {marker_id}: ({x_min},{y_min})-({x_max},{y_max})")
+                        logger.info(f"Using ROI search for marker {marker_id}: ({x_min},{y_min})-({x_max},{y_max})")
+                    else:
+                        logger.warning(f"Skipping match: ROI empty for marker {marker_id}")
+                        if self.debug_matches_dir is not None:
+                            self._save_correspondence_debug_image(
+                                marker_id=marker_id,
+                                template_image=template_data["image"],
+                                frame_image=frame_gray,
+                                template_kpts=template_kpts,
+                                frame_kpts=template_kpts[:0],
+                                match_pairs=torch.empty((0, 2)),
+                                frame_index=self.current_frame_index,
+                                label="empty_roi",
+                                raw_match_count=0,
+                            )
+                        return None, None, "no_match"
             
             # Extract features from search region
             h, w = search_region.shape
@@ -726,6 +769,7 @@ class LightGlueFallback:
                 frame_kpts = frame_feats['keypoints'][0]  # (N, 2) on device
                 frame_desc = frame_feats['descriptors'][0].T  # (N, 256) on device
             superpoint_ms = (time.perf_counter() - superpoint_start) * 1000.0
+            logger.info(f"SuperPoint extracted {len(frame_kpts)} keypoints for marker {marker_id}")
 
             # Call LightGlue with flattened feature dicts using rbd()
             # Prepare features dict for LightGlue
@@ -744,10 +788,17 @@ class LightGlueFallback:
             matches0 = matches['matches0']  # Shape (num_keypoints_template,)
             valid = matches0 >= 0  # Boolean mask for valid matches
             raw_match_count = int(valid.sum())
+            logger.info(f"LightGlue produced raw_match_count={raw_match_count} for marker {marker_id}")
+            
             template_matched_idx = torch.where(valid)[0]  # Indices of matched template keypoints
             frame_matched_idx = matches0[valid]  # Indices of matched frame keypoints
-            match_pairs = torch.stack([template_matched_idx, frame_matched_idx], dim=1)
+            
+            if len(template_matched_idx) > 0:
+                match_pairs = torch.stack([template_matched_idx, frame_matched_idx], dim=1)
+            else:
+                match_pairs = torch.empty((0, 2), device=template_matched_idx.device, dtype=torch.long)
 
+            # Save correspondence image even if matching failed
             self._save_correspondence_debug_image(
                 marker_id=marker_id,
                 template_image=template_data["image"],
@@ -757,10 +808,11 @@ class LightGlueFallback:
                 match_pairs=match_pairs,
                 frame_index=self.current_frame_index,
                 label="reacquire",
+                raw_match_count=raw_match_count,
             )
             
             if valid.sum() < self.cfg.min_inliers:
-                logger.debug(f"Insufficient matches for marker {marker_id}: {valid.sum()}")
+                logger.warning(f"Skipping match: not enough keypoints for marker {marker_id}: got {valid.sum()}, need {self.cfg.min_inliers}")
                 info = DebugInfo(
                     marker_id=marker_id,
                     source="lg_reacquire",
@@ -793,7 +845,7 @@ class LightGlueFallback:
             ransac_ms = (time.perf_counter() - ransac_start) * 1000.0
             
             if H is None:
-                logger.debug(f"Homography computation failed for marker {marker_id}")
+                logger.warning(f"Skipping match: homography computation failed for marker {marker_id}")
                 info = DebugInfo(
                     marker_id=marker_id,
                     source="lg_reacquire",
@@ -813,7 +865,7 @@ class LightGlueFallback:
             
             inliers = mask.sum() if mask is not None else 0
             if inliers < self.cfg.min_inliers:
-                logger.debug(f"Insufficient inliers for marker {marker_id}: {inliers}")
+                logger.warning(f"Skipping match: insufficient RANSAC inliers for marker {marker_id}: got {inliers}, need {self.cfg.min_inliers}")
                 info = DebugInfo(
                     marker_id=marker_id,
                     source="lg_reacquire",
@@ -848,7 +900,7 @@ class LightGlueFallback:
             if (recovered_corners < 0).any() or \
                (recovered_corners[:, 0] >= w_full).any() or \
                (recovered_corners[:, 1] >= h_full).any():
-                logger.debug(f"Recovered corners out of bounds for marker {marker_id}")
+                logger.warning(f"Skipping match: recovered corners out of bounds for marker {marker_id}")
                 return None, None
             
             # Refine corners if enabled
@@ -863,6 +915,7 @@ class LightGlueFallback:
                 )
             
             match_quality = inliers / valid.sum() if valid.sum() > 0 else 0.0
+            logger.info(f"LightGlue reacquire SUCCESS for marker {marker_id}: {int(inliers)} RANSAC inliers from {raw_match_count} raw matches")
             
             info = DebugInfo(
                 marker_id=marker_id,
@@ -884,5 +937,21 @@ class LightGlueFallback:
             return recovered_corners, info, None
             
         except Exception as e:
-            logger.debug(f"Template reacquire failed for marker {marker_id}: {e}")
+            logger.error(f"Template reacquire exception for marker {marker_id}: {e}", exc_info=True)
+            if self.debug_matches_dir is not None:
+                try:
+                    import torch
+                    self._save_correspondence_debug_image(
+                        marker_id=marker_id,
+                        template_image=template_data["image"] if marker_id in self.templates else np.zeros((100, 100), dtype=np.uint8),
+                        frame_image=frame_gray,
+                        template_kpts=torch.empty((0, 2)),
+                        frame_kpts=torch.empty((0, 2)),
+                        match_pairs=torch.empty((0, 2)),
+                        frame_index=self.current_frame_index,
+                        label="exception",
+                        raw_match_count=0,
+                    )
+                except Exception as save_e:
+                    logger.debug(f"Failed to save exception debug image: {save_e}")
             return None, None, "no_match"
